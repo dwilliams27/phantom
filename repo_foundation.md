@@ -1,4 +1,4 @@
-# Project Phantom
+# Phantom
 
 ## Vision
 

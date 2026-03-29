@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Phantom isTrusted Validation</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a1a2e; color: #eee; padding: 20px; }
+h1 { font-size: 24px; margin-bottom: 16px; color: #fff; }
+h2 { font-size: 18px; margin-bottom: 10px; color: #ccc; }
+
+.test-area {
+  background: #16213e; border: 2px solid #0f3460; border-radius: 8px;
+  padding: 24px; margin-bottom: 20px; display: flex; gap: 40px; align-items: flex-start;
+}
+.test-area .col { display: flex; flex-direction: column; gap: 12px; }
+
+button {
+  font-size: 18px; padding: 14px 32px; border: none; border-radius: 6px;
+  cursor: pointer; font-weight: bold;
+}
+#click-target { background: #0f3460; color: #fff; }
+#click-target:hover { background: #1a4a8a; }
+#js-simulate { background: #533483; color: #fff; }
+#js-simulate:hover { background: #6a45a0; }
+
+label { font-size: 16px; color: #aaa; }
+input[type="text"] {
+  font-size: 18px; padding: 12px 16px; border: 2px solid #0f3460;
+  border-radius: 6px; background: #0d1b3e; color: #fff; width: 300px;
+}
+
+.results { background: #16213e; border: 2px solid #0f3460; border-radius: 8px; padding: 16px; }
+table { width: 100%; border-collapse: collapse; font-family: 'SF Mono', 'Monaco', 'Menlo', monospace; font-size: 15px; }
+th { background: #0f3460; color: #fff; padding: 8px 12px; text-align: left; }
+td { padding: 6px 12px; border-bottom: 1px solid #1a2a4e; }
+.trusted { background: #1b5e20; }
+.trusted td.trust-val { color: #69f0ae; font-weight: bold; }
+.untrusted { background: #b71c1c; }
+.untrusted td.trust-val { color: #ff8a80; font-weight: bold; }
+
+#summary {
+  margin-top: 16px; padding: 16px; background: #0d1b3e;
+  border-radius: 8px; font-size: 18px; text-align: center;
+}
+#verdict { font-size: 32px; font-weight: bold; margin-top: 8px; }
+.pass { color: #69f0ae; }
+.fail { color: #ff5252; }
+.pending { color: #ffab40; }
+</style>
+</head>
+<body>
+
+<h1>Phantom isTrusted Validation Test</h1>
+
+<div class="test-area">
+  <div class="col">
+    <button id="click-target">CLICK ME</button>
+    <label for="type-target">TYPE HERE:</label>
+    <input type="text" id="type-target" placeholder="cliclick will type here...">
+  </div>
+  <div class="col">
+    <button id="js-simulate">SIMULATE VIA JS</button>
+    <p style="font-size:13px; color:#888; max-width:250px;">Dispatches programmatic events on the button and input. These MUST show isTrusted=false (control group).</p>
+  </div>
+</div>
+
+<div class="results">
+  <h2>Event Log</h2>
+  <table>
+    <thead><tr><th>#</th><th>Event Type</th><th>Target</th><th>isTrusted</th><th>Time</th></tr></thead>
+    <tbody id="event-log"></tbody>
+  </table>
+</div>
+
+<div id="summary">
+  <div>Trusted: <span id="trusted-count">0</span> &nbsp;|&nbsp; Untrusted: <span id="untrusted-count">0</span></div>
+  <div id="verdict" class="pending">WAITING FOR EVENTS...</div>
+</div>
+
+<script>
+const log = document.getElementById('event-log');
+const trustedCountEl = document.getElementById('trusted-count');
+const untrustedCountEl = document.getElementById('untrusted-count');
+const verdictEl = document.getElementById('verdict');
+
+let trustedCount = 0;
+let untrustedCount = 0;
+let mousemoveLogged = false;
+let hasTrustedClick = false;
+let hasTrustedKey = false;
+let hasUntrusted = false;
+
+function logEvent(e) {
+  // Throttle mousemove to first occurrence only (prevents table flood)
+  if (e.type === 'mousemove') {
+    if (mousemoveLogged) return;
+    mousemoveLogged = true;
+  }
+
+  const trusted = e.isTrusted;
+  if (trusted) trustedCount++; else untrustedCount++;
+
+  if (trusted && e.type === 'click') hasTrustedClick = true;
+  if (trusted && e.type === 'keydown') hasTrustedKey = true;
+  if (!trusted) hasUntrusted = true;
+
+  const targetId = e.target.id || e.target.tagName;
+  const row = document.createElement('tr');
+  row.className = trusted ? 'trusted' : 'untrusted';
+  row.innerHTML =
+    '<td>' + (trustedCount + untrustedCount) + '</td>' +
+    '<td>' + e.type + '</td>' +
+    '<td>' + targetId + '</td>' +
+    '<td class="trust-val">' + (trusted ? 'TRUE' : 'FALSE') + '</td>' +
+    '<td>' + new Date().toLocaleTimeString() + '</td>';
+  log.appendChild(row);
+
+  trustedCountEl.textContent = trustedCount;
+  untrustedCountEl.textContent = untrustedCount;
+
+  if (hasTrustedClick && hasTrustedKey && hasUntrusted) {
+    verdictEl.textContent = 'PASS — cliclick events are trusted';
+    verdictEl.className = 'pass';
+  } else if (untrustedCount > 0 && trustedCount === 0) {
+    verdictEl.textContent = 'FAIL — no trusted events detected';
+    verdictEl.className = 'fail';
+  } else {
+    verdictEl.textContent = 'COLLECTING EVENTS... (' + (trustedCount + untrustedCount) + ' so far)';
+    verdictEl.className = 'pending';
+  }
+}
+
+// Button events
+const btn = document.getElementById('click-target');
+['mousedown', 'mouseup', 'click', 'mousemove'].forEach(t => btn.addEventListener(t, logEvent));
+
+// Input events
+const input = document.getElementById('type-target');
+['focus', 'keydown', 'keyup', 'input'].forEach(t => input.addEventListener(t, logEvent));
+
+// JS simulation button — the click on THIS button is real (trusted),
+// but the events it dispatches on OTHER elements are programmatic (untrusted)
+document.getElementById('js-simulate').addEventListener('click', function(e) {
+  logEvent(e); // log the real click on this button
+
+  // Dispatch synthetic events on the click-target button
+  btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+
+  // Dispatch synthetic events on the input
+  input.dispatchEvent(new KeyboardEvent('keydown', { key: 'x', bubbles: true }));
+  input.dispatchEvent(new InputEvent('input', { data: 'simulated', bubbles: true }));
+});
+</script>
+
+</body>
+</html>
