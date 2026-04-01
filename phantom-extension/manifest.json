@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Phantom",
+  "version": "1.0",
+  "permissions": ["scripting", "tabs", "nativeMessaging", "activeTab"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  }
+}
