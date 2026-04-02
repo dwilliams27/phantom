@@ -122,8 +122,8 @@ Implement `check_page_status` and `wait_for` for session health monitoring.
 | 1A: Extension Scaffold + NM | Complete | Round-trip verified: ping/echo/error + reconnection |
 | 1B: Tab Management | Complete | list/navigate/back/forward/select verified via harness |
 | 1C: DOM Snapshot Walker | Complete | ARIA-aware tree, [N] refs, get_element_rect, auto-reload |
-| 1D: Dynamic Script Injection | Not started | |
-| 1E: Page Health Checks | Not started | |
+| 1D: Dynamic Script Injection | Complete | evaluate_script via file write + executeScript, 29 tests |
+| 1E: Page Health Checks | Complete | check_page_status + wait_for, 39 tests total |
 
 ## Open Questions for Phase 1
 
