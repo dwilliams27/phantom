@@ -25,6 +25,7 @@ export function getDb(): Database.Database {
       passengers INTEGER NOT NULL DEFAULT 1,
       class TEXT NOT NULL DEFAULT 'economy',
       trip_type TEXT NOT NULL DEFAULT 'roundtrip',
+      stops TEXT NOT NULL DEFAULT 'any',
       duration_min INTEGER,
       duration_max INTEGER,
       date_spec TEXT NOT NULL,
@@ -46,6 +47,7 @@ function rowToTarget(row: any): SearchTarget {
     passengers: row.passengers,
     class: row.class,
     tripType: row.trip_type,
+    stops: row.stops,
     duration: row.duration_min ? { min: row.duration_min, max: row.duration_max, unit: "days" as const } : undefined,
     dateSpec: JSON.parse(row.date_spec) as DateSpec,
     airlines: JSON.parse(row.airlines) as string[],
@@ -54,22 +56,22 @@ function rowToTarget(row: any): SearchTarget {
   };
 }
 
-export function createTarget(input: SearchTargetInput): SearchTarget {
+export function createTarget(input: SearchTargetInput, airlines: string[] = []): SearchTarget {
   const db = getDb();
   const id = crypto.randomUUID();
   const name = input.name || `${input.origin} → ${input.destination} ${input.class}`;
   const now = new Date().toISOString();
 
   db.prepare(`
-    INSERT INTO search_targets (id, name, origin, destination, passengers, class, trip_type, duration_min, duration_max, date_spec, airlines, active, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+    INSERT INTO search_targets (id, name, origin, destination, passengers, class, trip_type, stops, duration_min, duration_max, date_spec, airlines, active, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
   `).run(
     id, name, input.origin, input.destination, input.passengers, input.class, input.tripType,
-    input.duration?.min ?? null, input.duration?.max ?? null,
-    JSON.stringify(input.dateSpec), JSON.stringify([]), now,
+    input.stops, input.duration?.min ?? null, input.duration?.max ?? null,
+    JSON.stringify(input.dateSpec), JSON.stringify(airlines), now,
   );
 
-  return { ...input, id, name, airlines: [], active: true, createdAt: now };
+  return { ...input, id, name, airlines, active: true, createdAt: now };
 }
 
 export function listTargets(activeOnly = true): SearchTarget[] {

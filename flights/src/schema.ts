@@ -34,6 +34,7 @@ export const searchTargetInputSchema = z.object({
   passengers: z.number().int().min(1).default(1),
   class: z.enum(["economy", "business", "first"]).default("economy"),
   tripType: z.enum(["oneway", "roundtrip"]).default("roundtrip"),
+  stops: z.enum(["any", "nonstop", "max1stop"]).default("any"),
   duration: z.object({
     min: z.number().int().positive(),
     max: z.number().int().positive(),
