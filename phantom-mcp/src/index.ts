@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { ExtensionClient } from "./extension-client.js";
+import * as cliclick from "./cliclick.js";
 
 const extensionClient = new ExtensionClient();
 
@@ -109,6 +110,98 @@ server.registerTool("check_page_status", {
   description: "Check page health: detects login forms, CAPTCHAs, and error states",
   inputSchema: { tabId: optionalTabId },
 }, ({ tabId }) => callExtension("check_page_status", { tabId }));
+
+// --- Interaction ---
+
+async function getScreenCenter(ref: number, tabId?: number) {
+  const result = await extensionClient.sendCommand("get_element_rect", { ref, tabId });
+  if (result.error) throw new Error(result.error);
+  const r = result.result;
+  // screenX/screenY are screen coords of element's top-left; add half width/height for center
+  return { x: r.screenX + r.width / 2, y: r.screenY + r.height / 2 };
+}
+
+server.registerTool("click", {
+  description: "Click an element by its ref from the last snapshot. Moves the mouse naturally then clicks.",
+  inputSchema: {
+    ref: z.number().describe("Element ref number from take_snapshot"),
+    tabId: optionalTabId,
+  },
+}, async ({ ref, tabId }) => {
+  const center = await getScreenCenter(ref, tabId);
+  cliclick.moveTo(center.x, center.y);
+  await new Promise(r => setTimeout(r, 50));
+  cliclick.click(center.x, center.y);
+  return textResult(`Clicked element [${ref}]`);
+});
+
+server.registerTool("click_at", {
+  description: "Click at specific screen coordinates. Use when the target element is not in the snapshot (e.g., canvas-rendered UI).",
+  inputSchema: {
+    x: z.number().describe("Screen X coordinate"),
+    y: z.number().describe("Screen Y coordinate"),
+  },
+}, async ({ x, y }) => {
+  cliclick.moveTo(x, y);
+  await new Promise(r => setTimeout(r, 50));
+  cliclick.click(x, y);
+  return textResult(`Clicked at (${x}, ${y})`);
+});
+
+server.registerTool("mouse_move", {
+  description: "Move the mouse cursor to specific screen coordinates with natural easing",
+  inputSchema: {
+    x: z.number().describe("Screen X coordinate"),
+    y: z.number().describe("Screen Y coordinate"),
+  },
+}, ({ x, y }) => {
+  cliclick.moveTo(x, y);
+  return textResult(`Moved mouse to (${x}, ${y})`);
+});
+
+server.registerTool("fill", {
+  description: "Fill a form field by ref: clicks to focus, selects all existing text, then types the new value",
+  inputSchema: {
+    ref: z.number().describe("Element ref number from take_snapshot"),
+    value: z.string().describe("Text to fill into the field"),
+    tabId: optionalTabId,
+  },
+}, async ({ ref, value, tabId }) => {
+  const center = await getScreenCenter(ref, tabId);
+  cliclick.click(center.x, center.y);
+  await new Promise(r => setTimeout(r, 100));
+  cliclick.selectAll();
+  await new Promise(r => setTimeout(r, 50));
+  cliclick.typeText(value);
+  return textResult(`Filled element [${ref}] with "${value}"`);
+});
+
+server.registerTool("type_text", {
+  description: "Type text into the currently focused element",
+  inputSchema: { text: z.string().describe("Text to type") },
+}, ({ text }) => {
+  cliclick.typeText(text);
+  return textResult(`Typed "${text}"`);
+});
+
+server.registerTool("press_key", {
+  description: "Press a key or key combination. Examples: Enter, Tab, Escape, ArrowDown, Control+A, Command+C",
+  inputSchema: { key: z.string().describe("Key name or combo like 'Enter', 'Tab', 'Control+A'") },
+}, ({ key }) => {
+  cliclick.pressKey(key);
+  return textResult(`Pressed ${key}`);
+});
+
+server.registerTool("scroll", {
+  description: "Scroll the page up or down using keyboard simulation",
+  inputSchema: {
+    direction: z.enum(["up", "down"]).describe("Scroll direction"),
+    amount: z.number().optional().describe("Number of pages to scroll (default 1)"),
+  },
+}, ({ direction, amount }) => {
+  cliclick.scroll(direction, amount);
+  return textResult(`Scrolled ${direction}${amount ? ` ${amount} pages` : ""}`);
+});
 
 // --- Start ---
 

@@ -88,6 +88,26 @@ async function main() {
     const waitParsed = parseResult(waitResult);
     assert("wait_for finds selector", waitParsed.found === true);
 
+    // 10. click on a link ref → verify page navigated
+    // First ensure we're on example.com and take a fresh snapshot
+    await client.callTool({ name: "navigate_page", arguments: { url: "https://example.com" } });
+    await client.callTool({ name: "take_snapshot", arguments: {} });
+    const clickResult = await client.callTool({ name: "click", arguments: { ref: 0 } });
+    assert("click returns success", getText(clickResult).includes("Clicked"), getText(clickResult));
+    // Wait for navigation after click
+    await new Promise(r => setTimeout(r, 3000));
+    const postClickSnap = await client.callTool({ name: "take_snapshot", arguments: {} });
+    const postClickText = getText(postClickSnap);
+    assert("click navigated page", !postClickText.includes('"Example Domain"'), "page should have changed after clicking link");
+
+    // 11. press_key
+    const pressResult = await client.callTool({ name: "press_key", arguments: { key: "Tab" } });
+    assert("press_key succeeds", getText(pressResult).includes("Pressed"), getText(pressResult));
+
+    // 12. scroll
+    const scrollResult = await client.callTool({ name: "scroll", arguments: { direction: "down" } });
+    assert("scroll succeeds", getText(scrollResult).includes("Scrolled"), getText(scrollResult));
+
   } finally {
     await client.close();
   }
