@@ -6,7 +6,18 @@ Automate the flight search system to run overnight, processing search targets on
 
 ## Sub-phases
 
-### 4A: Scheduler
+### 4A: Results Storage
+
+SQLite database for search results, run history, and alert deduplication. Note: `search_results` table already exists from Phase 3D. This sub-phase adds `search_runs` for execution tracking and `alert_history` for deduplication.
+
+**Tables:**
+- `search_results` -- Already exists (Phase 3D). Raw JSON blobs per search execution.
+- `search_runs` -- Per-invocation metadata. Columns: id, target_id, airline_id, started_at, finished_at, status (success/captcha/login_required/error), result_count, error_message.
+- `alert_history` -- Deduplication for sent alerts. Columns: id, result_id, alerted_at, channel.
+
+---
+
+### 4B: Scheduler
 
 Cron-based scheduler that processes the search target list overnight.
 
@@ -26,17 +37,6 @@ Cron-based scheduler that processes the search target list overnight.
 node flights/dist/orchestrator.js  # runs until all targets processed, then exits
 ```
 Triggered by macOS launchd or cron.
-
----
-
-### 4B: Results Storage
-
-SQLite database for search results, run history, and alert deduplication.
-
-**Tables:**
-- `search_results` -- Timestamped flight availability per route/airline. Columns: id, target_id, airline_id, searched_at, departure_date, flight_number, origin, destination, duration, stops, economy_price, business_price, seats_remaining, raw_json.
-- `search_runs` -- Per-invocation metadata. Columns: id, target_id, airline_id, started_at, finished_at, status (success/captcha/login_required/error), result_count, error_message.
-- `alert_history` -- Deduplication for sent alerts. Columns: id, result_id, alerted_at, channel.
 
 ---
 
@@ -128,19 +128,19 @@ The `add` command uses Claude to parse the natural language into a search target
 ## Dependency Order
 
 ```
-4B (storage) → 4A (scheduler) → 4C (alerting) → 4D (CLI)
+4A (storage) → 4B (scheduler) → 4C (alerting) → 4D (CLI)
 ```
 
-4B provides the database that everything writes to. 4A uses the executor from 3D. 4C reads from 4B. 4D is the user interface on top of everything.
+4A extends the database with run tracking and alert dedup tables. 4B uses the executor from 3D with scheduling logic. 4C reads results and applies ranking + alerting. 4D is the user interface on top of everything.
 
 ## Progress Tracker
 
 | Sub-phase | Status | Notes |
 |-----------|--------|-------|
-| 4A: Scheduler | Not started | |
-| 4B: Results Storage | Not started | |
-| 4C: Alerting | Not started | |
-| 4D: Natural Language CLI | Not started | |
+| 4A: Results Storage | Not started | search_results exists from 3D, adds search_runs + alert_history |
+| 4B: Scheduler | Not started | |
+| 4C: Result Ranking + Alerting | Not started | |
+| 4D: Natural Language CLI | Not started | Most commands already exist from 3A |
 
 ## Open Questions
 
