@@ -207,8 +207,8 @@ flights/
 
 | Sub-phase | Status | Notes |
 |-----------|--------|-------|
-| 3A: Search Target Schema + Storage | Not started | |
-| 3B: Airline Registry | Not started | |
+| 3A: Search Target Schema + Storage | Complete | SQLite at ~/.phantom/data/, NL parsing via claude -p, stops field |
+| 3B: Airline Registry | Complete | 277 Turkish nonstop routes scraped from FlightConnections, region + nonstop filtering |
 | 3C: Airline Onboarding (Turkish) | Not started | Ad-hoc test already working |
 | 3D: Search Executor | Not started | |
 
