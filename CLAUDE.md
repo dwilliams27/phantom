@@ -53,6 +53,10 @@ After adding any new functionality, you MUST prove it works. The user will not c
 
 `./scripts/run_harness_test.sh` runs the full e2e test suite. It launches a clean Phantom Chrome instance, connects via the NM channel, runs all test assertions, reports pass/fail, then kills Chrome and exits. Exit code 0 = all pass, 1 = failures. Add new test assertions to `scripts/test_harness.js` whenever new extension commands are implemented. Run this after every feature addition to catch regressions. For interactive debugging, run `node scripts/test_harness.js --interactive` (requires Phantom Chrome to be running separately).
 
+## Enhancements Wishlist
+
+`docs/enhancements.md` is a running wishlist of planned improvements, ideas, and deferred features. Add new items anytime. Remove items completely when they ship. Not a roadmap -- just a grab bag of things we want to get to eventually.
+
 ## Conventions
 
 - Log everything: tool calls, reasoning, timing, screenshots
