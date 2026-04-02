@@ -36,6 +36,21 @@ export function getDb(): Database.Database {
     )
   `);
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS search_results (
+      id TEXT PRIMARY KEY,
+      target_id TEXT NOT NULL,
+      airline_id TEXT NOT NULL,
+      searched_at TEXT NOT NULL,
+      departure_date TEXT NOT NULL,
+      origin TEXT NOT NULL,
+      destination TEXT NOT NULL,
+      search_mode TEXT NOT NULL,
+      raw_json TEXT NOT NULL,
+      flight_count INTEGER NOT NULL
+    )
+  `);
+
   return db;
 }
 

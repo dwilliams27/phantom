@@ -4,6 +4,8 @@ import readline from "readline";
 import { searchTargetInputSchema, resolveDateSpec } from "./schema.js";
 import { createTarget, listTargets, getTarget, deactivateTarget, activateTarget } from "./db.js";
 import { loadRegistry, findAirlinesForRoute, hasNonstop } from "./registry.js";
+import { executeSearch } from "./executor.js";
+import { getResults } from "./results.js";
 import type { SearchTargetInput } from "./schema.js";
 
 const PARSE_PROMPT = `Parse this flight search request into a structured JSON object. Extract:
@@ -170,9 +172,61 @@ async function main() {
       break;
     }
 
+    case "run": {
+      const id = args[0];
+      if (!id) { console.error("Usage: cli run <target-id> [--airline <id>]"); process.exit(1); }
+      const target = getTarget(id);
+      if (!target) { console.error(`Target not found: ${id}`); process.exit(1); }
+      if (target.airlines.length === 0) { console.error("No airlines assigned to this target. Use 'add' with airline suggestions first."); process.exit(1); }
+
+      const airlineFlag = args.indexOf("--airline");
+      if (airlineFlag !== -1 && !args[airlineFlag + 1]) { console.error("--airline requires a value"); process.exit(1); }
+      const airlineIds = airlineFlag !== -1 ? [args[airlineFlag + 1]] : target.airlines;
+
+      console.log(`Running search: ${target.name}`);
+      console.log(`  Route: ${target.origin} → ${target.destination}`);
+      console.log(`  Mode: ${target.searchMode} | Class: ${target.class}`);
+      console.log(`  Airlines: ${airlineIds.join(", ")}`);
+      console.log("");
+
+      for (const airlineId of airlineIds) {
+        const results = await executeSearch(target, airlineId);
+        if (results.flights?.length) {
+          console.log(`\n  Results from ${airlineId}:`);
+          for (const f of results.flights) {
+            const miles = target.class === "business" ? f.businessMiles : f.economyMiles;
+            console.log(`    ${f.departureTime}→${f.arrivalTime} (${f.duration}) ${miles?.toLocaleString()} miles${f.seatsRemaining ? ` [${f.seatsRemaining}]` : ""}`);
+          }
+        }
+      }
+      console.log("\nDone.");
+      break;
+    }
+
+    case "results": {
+      const id = args[0];
+      if (!id) { console.error("Usage: cli results <target-id>"); process.exit(1); }
+      const rows = getResults(id);
+      if (rows.length === 0) {
+        console.log("No results found for this target.");
+      } else {
+        for (const row of rows) {
+          console.log(`\n  ${row.airlineId} | ${row.departureDate} | ${row.searchedAt}`);
+          console.log(`  ${row.flightCount} flights found`);
+          const parsed = JSON.parse(row.rawJson);
+          if (parsed.flights) {
+            for (const f of parsed.flights) {
+              console.log(`    ${f.departureTime}→${f.arrivalTime} (${f.duration}) eco:${f.economyMiles} biz:${f.businessMiles}`);
+            }
+          }
+        }
+      }
+      break;
+    }
+
     default:
       console.log("Usage: cli <command> [args]");
-      console.log("Commands: add, airlines, list, show, disable, enable");
+      console.log("Commands: add, airlines, list, show, disable, enable, run, results");
       console.log("");
       console.log("  add \"<natural language>\"   Parse and create a search target");
       console.log("  add --json '{...}'         Create from raw JSON (--yes to auto-accept airlines)");
@@ -181,6 +235,8 @@ async function main() {
       console.log("  show <id>                  Show target details");
       console.log("  disable <id>               Deactivate a target");
       console.log("  enable <id>                Reactivate a target");
+      console.log("  run <target-id>            Execute search for a target");
+      console.log("  results <target-id>        Show past search results");
       break;
   }
 }
