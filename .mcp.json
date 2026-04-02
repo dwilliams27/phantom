@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "phantom": {
+      "command": "node",
+      "args": ["phantom-mcp/dist/index.js"]
+    }
+  }
+}
