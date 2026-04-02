@@ -29,13 +29,13 @@ Claude Code -> stdio -> Phantom MCP Server (TypeScript/Node.js) -> Native Messag
 
 - `repo_foundation.md` -- full architecture, tool surface, stealth profile, phase details
 - `docs/decisions/NNN-title.md` -- ADRs
-- `phantom-extension/` -- Chrome extension
-- `phantom-mcp/` -- MCP server
-- `tasks/{airline}/TASK.md` -- per-site prose instructions
-- `config/` -- routes.json, alerts.json, network_allowlist.txt
-- `results/` -- search output JSON
+- `docs/enhancements.md` -- running wishlist of planned improvements
+- `docs/phase1_plan.md` -- Phase 1 sub-phase plan and progress tracker
+- `phantom-extension/` -- Chrome extension (background.js, snapshot.js, nm-shim.js)
+- `scripts/` -- test harness, setup, e2e test runner
 - `screenshots/` -- debug captures
-- `scripts/` -- orchestrator, setup
+
+Planned (not yet created): `phantom-mcp/` (Phase 2), `tasks/{airline}/TASK.md` (Phase 3), `config/` (Phase 3), `results/` (Phase 3).
 
 ## Phases
 

@@ -1,2 +1,5 @@
+.DS_Store
+node_modules/
+.env
 phantom-extension/nm-shim-launch.sh
 phantom-extension/eval/
