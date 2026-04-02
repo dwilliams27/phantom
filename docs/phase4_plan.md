@@ -40,13 +40,34 @@ SQLite database for search results, run history, and alert deduplication.
 
 ---
 
-### 4C: Alerting
+### 4C: Result Ranking + Alerting
 
-Threshold-based alerts when interesting flights are found.
+The scrape agent (Phase 3) collects ALL flight results from a search page. Phase 4C ranks them and decides which ones to alert on.
+
+**Two-stage pipeline:**
+1. **Ranking**: Score and filter raw results. Configurable per search target with weights for price vs travel time. Filter out unreasonable options (e.g., 30+ hour travel times).
+2. **Alerting**: Apply threshold rules to ranked results. Send alerts for deals that meet criteria.
+
+**Ranking config** (added to search target or alerts.json):
+```json
+{
+  "ranking": {
+    "maxTravelHours": 24,
+    "preferNonstop": true,
+    "weights": {
+      "price": 0.7,
+      "duration": 0.3
+    }
+  }
+}
+```
+
+The ranking algo takes raw results, filters by maxTravelHours, scores remaining by weighted combination of price (lower = better) and duration (shorter = better), returns top N.
 
 **Deliverables:**
-- `flights/alerting.ts` -- Check results against thresholds, send alerts
-- `flights/config/alerts.json` -- Alert configuration
+- `flights/ranking.ts` -- Score and rank raw search results, filter unreasonable travel times
+- `flights/alerting.ts` -- Check ranked results against thresholds, send alerts
+- `flights/config/alerts.json` -- Alert rules + ranking configuration
 
 **Alert config example:**
 ```json
@@ -54,9 +75,14 @@ Threshold-based alerts when interesting flights are found.
   "rules": [
     {
       "targetId": "uuid",
+      "ranking": {
+        "maxTravelHours": 24,
+        "preferNonstop": true,
+        "weights": { "price": 0.7, "duration": 0.3 }
+      },
       "conditions": {
-        "maxBusinessPrice": 3000,
-        "maxEconomyPrice": 800
+        "maxBusinessPoints": 200000,
+        "maxEconomyPoints": 80000
       },
       "channels": ["email"],
       "cooldown": "24h"
@@ -67,7 +93,7 @@ Threshold-based alerts when interesting flights are found.
 
 **Email via nodemailer (MVP).** Telegram later.
 
-**Alert content:** Airline, route, date, price, class, booking page URL if available.
+**Alert content:** Airline, route, date, points/miles required, class, travel time, stops, ranked position.
 
 **Deduplication:** Don't re-alert the same flight within the cooldown period. Check alert_history table.
 
