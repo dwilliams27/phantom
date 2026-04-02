@@ -36,11 +36,15 @@ Claude Code -> stdio -> Phantom MCP Server (TypeScript/Node.js) -> Native Messag
 - `scripts/` -- test harness, setup, e2e test runner (`./scripts/run_harness_test.sh`)
 - `.mcp.json` -- Claude Code MCP server configuration
 
-Planned (not yet created): `tasks/{airline}/TASK.md` (Phase 3), `config/` (Phase 3), `results/` (Phase 3).
+Planned (not yet created): `flights/` (Phase 3 -- flight search application layer, separate from core).
+
+## Two-Layer Architecture
+
+Layer 1 (Phantom Core): `phantom-extension/` + `phantom-mcp/` -- general-purpose stealth browser automation. Knows nothing about flights. Reusable for any web automation task. Layer 2 (Flight Search): `flights/` -- search targets, airline registry, TASK.md per airline, executor, orchestrator, alerting. Built on top of Core via Claude Code + MCP tools. See ADR 005.
 
 ## Phases
 
-0: Environment & stealth validation (Chrome profile, cliclick isTrusted verify, screencapture, network restrictions, bot detection sites). 1: Extension (Native Messaging, DOM snapshot walker, element refs, tab mgmt). 2: MCP Server (stdio transport, Native Messaging client, cliclick/screencapture wrappers, tool registration). 3: First airline (Turkish Airlines). 4: Orchestrator & alerting. 5: Scale airlines. 6: General-purpose hardening.
+0: Environment & stealth validation. 1: Extension (NM, snapshot, eval, health). 2: MCP Server (tools, cliclick, screencapture). 3: Flight Search Layer (search targets, airline registry, Turkish onboarding, executor). 4: Overnight Orchestration (scheduler, storage, alerting, natural language CLI). 5: Scale airlines. 6: General-purpose hardening.
 
 ## Development Rules
 
