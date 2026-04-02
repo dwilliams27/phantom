@@ -120,7 +120,7 @@ Implement `check_page_status` and `wait_for` for session health monitoring.
 | Sub-phase | Status | Notes |
 |-----------|--------|-------|
 | 1A: Extension Scaffold + NM | Complete | Round-trip verified: ping/echo/error + reconnection |
-| 1B: Tab Management | Not started | |
+| 1B: Tab Management | Complete | list/navigate/back/forward/select verified via harness |
 | 1C: DOM Snapshot Walker | Not started | |
 | 1D: Dynamic Script Injection | Not started | |
 | 1E: Page Health Checks | Not started | |

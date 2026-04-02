@@ -1,12 +1,15 @@
 const NM_HOST = "com.phantom.mcp";
 const KEEPALIVE_INTERVAL_MS = 25000;
 const RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 16000, 30000];
+const NAV_TIMEOUT_MS = 30000;
 
 let port = null;
 let keepaliveTimer = null;
 let reconnectAttempt = 0;
+let reconnecting = false;
 
 function connect() {
+  reconnecting = false;
   console.log("Initiating NM connection...");
   port = chrome.runtime.connectNative(NM_HOST);
 
@@ -44,16 +47,53 @@ function cleanup() {
 }
 
 function scheduleReconnect() {
+  if (reconnecting) return;
+  reconnecting = true;
   const delay = RECONNECT_DELAYS[Math.min(reconnectAttempt, RECONNECT_DELAYS.length - 1)];
   reconnectAttempt++;
   console.log(`Reconnecting in ${delay}ms (attempt ${reconnectAttempt})`);
   setTimeout(connect, delay);
 }
 
-function handleCommand(message) {
+async function getActiveTabId() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tab.id;
+}
+
+function waitForTabLoad(tabId) {
+  return new Promise((resolve, reject) => {
+    const onUpdated = (tid, info, t) => {
+      if (tid === tabId && info.status === "complete") {
+        done();
+        resolve(t);
+      }
+    };
+    const onRemoved = (tid) => {
+      if (tid === tabId) {
+        done();
+        reject(new Error(`Tab ${tabId} closed during navigation`));
+      }
+    };
+    const timer = setTimeout(() => {
+      done();
+      reject(new Error(`Navigation timed out after ${NAV_TIMEOUT_MS}ms`));
+    }, NAV_TIMEOUT_MS);
+
+    function done() {
+      clearTimeout(timer);
+      chrome.tabs.onUpdated.removeListener(onUpdated);
+      chrome.tabs.onRemoved.removeListener(onRemoved);
+    }
+
+    chrome.tabs.onUpdated.addListener(onUpdated);
+    chrome.tabs.onRemoved.addListener(onRemoved);
+  });
+}
+
+async function handleCommand(message) {
   const { id, command, params } = message;
 
-  switch (command) {
+  try { switch (command) {
     case "ping":
       port.postMessage({ id, result: { pong: true } });
       break;
@@ -62,10 +102,50 @@ function handleCommand(message) {
       port.postMessage({ id, result: { echoed: params } });
       break;
 
+    case "list_pages": {
+      const tabs = await chrome.tabs.query({});
+      port.postMessage({ id, result: { tabs: tabs.map(t => ({ id: t.id, title: t.title, url: t.url, active: t.active, status: t.status })) } });
+      break;
+    }
+
+    case "navigate_page": {
+      const tabId = params.tabId || await getActiveTabId();
+      await chrome.tabs.update(tabId, { url: params.url });
+      const tab = await waitForTabLoad(tabId);
+      port.postMessage({ id, result: { tabId: tab.id, url: tab.url } });
+      break;
+    }
+
+    case "go_back": {
+      const tabId = params.tabId || await getActiveTabId();
+      await chrome.tabs.goBack(tabId);
+      port.postMessage({ id, result: { tabId, success: true } });
+      break;
+    }
+
+    case "go_forward": {
+      const tabId = params.tabId || await getActiveTabId();
+      await chrome.tabs.goForward(tabId);
+      port.postMessage({ id, result: { tabId, success: true } });
+      break;
+    }
+
+    case "select_page": {
+      const tab = await chrome.tabs.update(params.tabId, { active: true });
+      port.postMessage({ id, result: { tabId: tab.id } });
+      break;
+    }
+
     default:
       port.postMessage({ id, error: `Unknown command: ${command}` });
       break;
+  } } catch (err) {
+    port.postMessage({ id, error: err.message });
   }
 }
 
+// Connect on every event that can wake the service worker
 connect();
+chrome.runtime.onStartup.addListener(() => { if (!port && !reconnecting) connect(); });
+chrome.runtime.onInstalled.addListener(() => { if (!port && !reconnecting) connect(); });
+chrome.tabs.onUpdated.addListener(() => { if (!port && !reconnecting) connect(); });

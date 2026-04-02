@@ -49,6 +49,10 @@ Run /simplify before every commit that contains code changes.
 
 After adding any new functionality, you MUST prove it works. The user will not closely read code. Walk through new functionality and generate artifacts (logs, screenshots, output) that demonstrate it works according to spec. Always run real, full integration tests when adding new functionality. If you build a new function for the agent, test it by actually calling that function inside the real environment the agent would use. All tests must mimic actual system operation as closely as possible. No mocks, no stubs, no simulated environments when the real thing is available.
 
+## E2E Test
+
+`./scripts/run_harness_test.sh` runs the full e2e test suite. It launches a clean Phantom Chrome instance, connects via the NM channel, runs all test assertions, reports pass/fail, then kills Chrome and exits. Exit code 0 = all pass, 1 = failures. Add new test assertions to `scripts/test_harness.js` whenever new extension commands are implemented. Run this after every feature addition to catch regressions. For interactive debugging, run `node scripts/test_harness.js --interactive` (requires Phantom Chrome to be running separately).
+
 ## Conventions
 
 - Log everything: tool calls, reasoning, timing, screenshots
