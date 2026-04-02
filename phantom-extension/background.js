@@ -153,6 +153,22 @@ async function handleCommand(message) {
       break;
     }
 
+    case "evaluate_script": {
+      const tabId = params.tabId || await getActiveTabId();
+      const [result] = await chrome.scripting.executeScript({
+        target: { tabId },
+        world: "ISOLATED",
+        files: [params.scriptPath],
+      });
+      const val = result.result;
+      if (val?.__error) {
+        port.postMessage({ id, error: val.__error });
+      } else {
+        port.postMessage({ id, result: val });
+      }
+      break;
+    }
+
     case "get_element_rect": {
       const tabId = params.tabId || await getActiveTabId();
       const ref = params.ref;

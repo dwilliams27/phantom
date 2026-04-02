@@ -3,10 +3,38 @@
 
 const net = require("net");
 const fs = require("fs");
+const path = require("path");
+const crypto = require("crypto");
 const readline = require("readline");
 
 const SOCKET_PATH = "/tmp/phantom.sock";
+const EVAL_DIR = path.join(__dirname, "..", "phantom-extension", "eval");
 const INTERACTIVE = process.argv.includes("--interactive");
+
+function wrapScript(js) {
+  // Multi-statement scripts must include their own return; single expressions get auto-return
+  const body = js.includes(";") ? js : `return ${js}`;
+  return `(() => {\n  try {\n    ${body};\n  } catch(e) {\n    return {__error: e.message, stack: e.stack};\n  }\n})();`;
+}
+
+function writeEvalScript(js) {
+  fs.mkdirSync(EVAL_DIR, { recursive: true });
+  const filename = `script_${crypto.randomUUID()}.js`;
+  const filepath = path.join(EVAL_DIR, filename);
+  fs.writeFileSync(filepath, wrapScript(js));
+  return { scriptPath: `eval/${filename}`, filepath };
+}
+
+function cleanupEvalScript(filepath) {
+  try { fs.unlinkSync(filepath); } catch (e) { if (e.code !== "ENOENT") throw e; }
+}
+
+async function evalScript(client, js) {
+  const { scriptPath, filepath } = writeEvalScript(js);
+  const result = await sendCommand(client, "evaluate_script", { scriptPath });
+  cleanupEvalScript(filepath);
+  return result;
+}
 
 try { fs.unlinkSync(SOCKET_PATH); } catch (_) {}
 
@@ -144,6 +172,37 @@ async function runTests(client) {
   const badRect = await sendCommand(client, "get_element_rect", { ref: 9999 });
   assert("get_element_rect invalid ref returns error", typeof badRect.error === "string", JSON.stringify(badRect));
 
+  // 11. evaluate_script: simple expression
+  const evalTitle = await evalScript(client, "document.title");
+  assert("evaluate_script returns document.title", evalTitle.result === "Example Domain", JSON.stringify(evalTitle));
+
+  // 12. evaluate_script: DOM query returning array of objects
+  const evalLinks = await evalScript(client, "Array.from(document.querySelectorAll('a')).map(a => ({text: a.textContent, href: a.href}))");
+  assert("evaluate_script returns link array", Array.isArray(evalLinks.result) && evalLinks.result.length > 0, JSON.stringify(evalLinks));
+
+  // 13. evaluate_script: script that throws
+  const evalError = await evalScript(client, "(() => { throw new Error('test error'); })()");
+  assert("evaluate_script error returns __error", typeof evalError.error === "string" && evalError.error.includes("test error"), JSON.stringify(evalError));
+
+  // 14. Interactive command parsing (exercises the same paths as readline dispatch)
+  const interactiveTests = [
+    { input: "ping", expected: { command: "ping" } },
+    { input: "tabs", expected: { command: "list_pages" } },
+    { input: "nav https://example.com", expected: { command: "navigate_page", params: { url: "https://example.com" } } },
+    { input: "back", expected: { command: "go_back" } },
+    { input: "forward", expected: { command: "go_forward" } },
+    { input: "echo hello world", expected: { command: "echo", params: { text: "hello world" } } },
+    { input: "snapshot", expected: { command: "take_snapshot" } },
+    { input: "rect 5", expected: { command: "get_element_rect", params: { ref: 5 } } },
+    { input: "eval document.title", expected: { command: "eval", params: { js: "document.title" } } },
+  ];
+  for (const { input, expected } of interactiveTests) {
+    const parsed = parseInteractiveCommand(input);
+    assert(`interactive "${input}" parses correctly`,
+      parsed.command === expected.command && (!expected.params || JSON.stringify(parsed.params) === JSON.stringify(expected.params)),
+      JSON.stringify(parsed));
+  }
+
   // Summary
   console.log("");
   console.log("============================================");
@@ -152,7 +211,7 @@ async function runTests(client) {
   console.log("");
 
   if (INTERACTIVE) {
-    console.log("Entering interactive mode. Commands: ping, echo <text>, tabs, nav <url>, back, forward, snapshot, rect <N>, quit");
+    console.log("Entering interactive mode. Commands: ping, echo <text>, tabs, nav <url>, back, forward, snapshot, rect <N>, eval <js>, quit");
   } else {
     process.exit(testsFailed > 0 ? 1 : 0);
   }
@@ -164,35 +223,37 @@ server.listen(SOCKET_PATH, () => {
   console.log("");
 });
 
+function parseInteractiveCommand(input) {
+  const trimmed = input.trim();
+  if (trimmed === "ping") return { command: "ping" };
+  if (trimmed.startsWith("echo ")) return { command: "echo", params: { text: trimmed.substring(5) } };
+  if (trimmed === "tabs") return { command: "list_pages" };
+  if (trimmed.startsWith("nav ")) return { command: "navigate_page", params: { url: trimmed.substring(4) } };
+  if (trimmed === "back") return { command: "go_back" };
+  if (trimmed === "forward") return { command: "go_forward" };
+  if (trimmed === "snapshot") return { command: "take_snapshot" };
+  if (trimmed.startsWith("rect ")) return { command: "get_element_rect", params: { ref: parseInt(trimmed.substring(5), 10) } };
+  if (trimmed.startsWith("eval ")) return { command: "eval", params: { js: trimmed.substring(5) } };
+  if (trimmed === "quit") return { command: "quit" };
+  return null;
+}
+
 if (INTERACTIVE) {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   rl.on("line", (line) => {
     if (!activeClient) { console.log("[harness] No client connected"); return; }
-    const trimmed = line.trim();
-    if (trimmed === "ping") {
-      sendCommand(activeClient, "ping").then(r => console.log("  =>", JSON.stringify(r)));
-    } else if (trimmed.startsWith("echo ")) {
-      sendCommand(activeClient, "echo", { text: trimmed.substring(5) }).then(r => console.log("  =>", JSON.stringify(r)));
-    } else if (trimmed === "tabs") {
-      sendCommand(activeClient, "list_pages").then(r => console.log("  =>", JSON.stringify(r)));
-    } else if (trimmed.startsWith("nav ")) {
-      sendCommand(activeClient, "navigate_page", { url: trimmed.substring(4) }).then(r => console.log("  =>", JSON.stringify(r)));
-    } else if (trimmed === "back") {
-      sendCommand(activeClient, "go_back").then(r => console.log("  =>", JSON.stringify(r)));
-    } else if (trimmed === "forward") {
-      sendCommand(activeClient, "go_forward").then(r => console.log("  =>", JSON.stringify(r)));
-    } else if (trimmed === "snapshot") {
-      sendCommand(activeClient, "take_snapshot").then(r => {
+    const parsed = parseInteractiveCommand(line);
+    if (!parsed) { console.log("Commands: ping, echo <text>, tabs, nav <url>, back, forward, snapshot, rect <N>, eval <js>, quit"); return; }
+    if (parsed.command === "quit") { shutdown(); return; }
+    if (parsed.command === "eval") {
+      evalScript(activeClient, parsed.params.js).then(r => console.log("  =>", JSON.stringify(r.result ?? r.error)));
+    } else if (parsed.command === "take_snapshot") {
+      sendCommand(activeClient, parsed.command).then(r => {
         if (r.result?.tree) { console.log("\n" + r.result.tree + "\n"); console.log(`(${r.result.refCount} refs)`); }
         else console.log("  =>", JSON.stringify(r));
       });
-    } else if (trimmed.startsWith("rect ")) {
-      const ref = parseInt(trimmed.substring(5), 10);
-      sendCommand(activeClient, "get_element_rect", { ref }).then(r => console.log("  =>", JSON.stringify(r)));
-    } else if (trimmed === "quit") {
-      shutdown();
     } else {
-      console.log("Commands: ping, echo <text>, tabs, nav <url>, back, forward, snapshot, rect <N>, quit");
+      sendCommand(activeClient, parsed.command, parsed.params).then(r => console.log("  =>", JSON.stringify(r)));
     }
   });
 }
