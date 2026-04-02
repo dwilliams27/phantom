@@ -28,6 +28,7 @@ cd "$REPO_ROOT"
   --no-default-browser-check \
   --disable-session-crashed-bubble \
   --hide-crash-restore-bubble \
+  --disable-notifications \
   "https://example.com" &>/dev/null &
 disown
 sleep 4
@@ -51,6 +52,7 @@ sleep 2
   --no-default-browser-check \
   --disable-session-crashed-bubble \
   --hide-crash-restore-bubble \
+  --disable-notifications \
   "https://example.com" &>/dev/null &
 disown
 sleep 4

@@ -34,6 +34,7 @@ echo "[audit] Launching Phantom Chrome..."
   --no-default-browser-check \
   --disable-session-crashed-bubble \
   --hide-crash-restore-bubble \
+  --disable-notifications \
   "about:blank" &>/dev/null &
 disown
 sleep 5
