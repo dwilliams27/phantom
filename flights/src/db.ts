@@ -26,6 +26,7 @@ export function getDb(): Database.Database {
       class TEXT NOT NULL DEFAULT 'economy',
       trip_type TEXT NOT NULL DEFAULT 'roundtrip',
       stops TEXT NOT NULL DEFAULT 'any',
+      search_mode TEXT NOT NULL DEFAULT 'points',
       duration_min INTEGER,
       duration_max INTEGER,
       date_spec TEXT NOT NULL,
@@ -48,6 +49,7 @@ function rowToTarget(row: any): SearchTarget {
     class: row.class,
     tripType: row.trip_type,
     stops: row.stops,
+    searchMode: row.search_mode,
     duration: row.duration_min ? { min: row.duration_min, max: row.duration_max, unit: "days" as const } : undefined,
     dateSpec: JSON.parse(row.date_spec) as DateSpec,
     airlines: JSON.parse(row.airlines) as string[],
@@ -63,11 +65,11 @@ export function createTarget(input: SearchTargetInput, airlines: string[] = []):
   const now = new Date().toISOString();
 
   db.prepare(`
-    INSERT INTO search_targets (id, name, origin, destination, passengers, class, trip_type, stops, duration_min, duration_max, date_spec, airlines, active, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+    INSERT INTO search_targets (id, name, origin, destination, passengers, class, trip_type, stops, search_mode, duration_min, duration_max, date_spec, airlines, active, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
   `).run(
     id, name, input.origin, input.destination, input.passengers, input.class, input.tripType,
-    input.stops, input.duration?.min ?? null, input.duration?.max ?? null,
+    input.stops, input.searchMode, input.duration?.min ?? null, input.duration?.max ?? null,
     JSON.stringify(input.dateSpec), JSON.stringify(airlines), now,
   );
 

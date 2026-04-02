@@ -2,8 +2,16 @@
   {
     "id": "turkish_airlines",
     "name": "Turkish Airlines",
-    "taskPath": "flights/tasks/turkish_airlines/TASK.md",
-    "searchUrl": "https://www.turkishairlines.com",
+    "searchModes": {
+      "points": {
+        "taskPath": "flights/tasks/turkish_airlines/TASK_points.md",
+        "searchUrl": "https://www.turkishairlines.com/en-us/miles-and-smiles/book-award-tickets/"
+      },
+      "dollars": {
+        "taskPath": "flights/tasks/turkish_airlines/TASK_dollars.md",
+        "searchUrl": "https://www.turkishairlines.com"
+      }
+    },
     "hubs": ["IST"],
     "regions": ["americas", "europe", "asia", "africa", "oceania"],
     "nonstopRoutes": [
@@ -51,8 +59,7 @@
     "capabilities": {
       "oneWay": true,
       "roundTrip": true,
-      "classSelection": true,
-      "milesSearch": true
+      "classSelection": true
     },
     "status": "onboarded"
   }

@@ -9,14 +9,20 @@ export interface AirlineCapabilities {
   oneWay: boolean;
   roundTrip: boolean;
   classSelection: boolean;
-  milesSearch: boolean;
+}
+
+export interface AirlineSearchMode {
+  taskPath: string;
+  searchUrl: string;
 }
 
 export interface Airline {
   id: string;
   name: string;
-  taskPath: string;
-  searchUrl: string;
+  searchModes: {
+    points?: AirlineSearchMode;
+    dollars?: AirlineSearchMode;
+  };
   hubs: string[];
   regions: string[];
   nonstopRoutes: string[];
@@ -84,6 +90,7 @@ export function findAirlinesForRoute(
   origin: string,
   destination: string,
   stops: "any" | "nonstop" | "max1stop" = "any",
+  searchMode: "points" | "dollars" = "points",
 ): Airline[] {
   const airlines = loadRegistry().filter(a => a.status === "onboarded");
   const originRegion = getAirportRegion(origin);
@@ -93,9 +100,18 @@ export function findAirlinesForRoute(
   if (!destRegion) console.error(`WARNING: Unknown airport code ${destination} -- not in AIRPORT_REGIONS. All airlines will be suggested.`);
 
   return airlines.filter(airline => {
+    if (!airline.searchModes[searchMode]) return false;
     if (originRegion && !airline.regions.includes(originRegion)) return false;
     if (destRegion && !airline.regions.includes(destRegion)) return false;
     if (stops === "nonstop" && !hasNonstop(airline, origin, destination)) return false;
     return true;
   });
+}
+
+export function getTaskPath(airline: Airline, searchMode: "points" | "dollars"): string | null {
+  return airline.searchModes[searchMode]?.taskPath ?? null;
+}
+
+export function getSearchUrl(airline: Airline, searchMode: "points" | "dollars"): string | null {
+  return airline.searchModes[searchMode]?.searchUrl ?? null;
 }

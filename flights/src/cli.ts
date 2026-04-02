@@ -13,6 +13,7 @@ const PARSE_PROMPT = `Parse this flight search request into a structured JSON ob
 - class: "economy" | "business" | "first" (default "economy")
 - tripType: "oneway" | "roundtrip" (default "roundtrip")
 - stops: "any" | "nonstop" | "max1stop" (default "any")
+- searchMode: "points" | "dollars" (default "points" -- most requests are about award/miles searches)
 - duration: {"min": N, "max": N, "unit": "days"} for roundtrip length (optional)
 - dateSpec: rolling or fixed date specification
 
@@ -47,6 +48,7 @@ function printTarget(t: any): void {
   console.log(`  Class:       ${t.class}`);
   console.log(`  Trip:        ${t.tripType}${t.duration ? ` (${t.duration.min}-${t.duration.max} days)` : ""}`);
   console.log(`  Stops:       ${t.stops}`);
+  console.log(`  Search mode: ${t.searchMode}`);
   console.log(`  Passengers:  ${t.passengers}`);
   console.log(`  Date spec:   ${t.dateSpec.type === "rolling" ? `rolling (${t.dateSpec.earliest.offset} ${t.dateSpec.earliest.unit} - ${t.dateSpec.latest.offset} ${t.dateSpec.latest.unit})` : `fixed (${t.dateSpec.start} to ${t.dateSpec.end})`}`);
   console.log(`  Resolves to: ${dates.start} to ${dates.end}`);
@@ -63,7 +65,7 @@ function askConfirmation(question: string): Promise<string> {
 }
 
 async function suggestAirlines(input: SearchTargetInput): Promise<string[]> {
-  const matches = findAirlinesForRoute(input.origin, input.destination, input.stops);
+  const matches = findAirlinesForRoute(input.origin, input.destination, input.stops, input.searchMode);
   if (matches.length === 0) {
     console.log("  No matching airlines found in registry for this route/stops combination.");
     return [];
@@ -121,7 +123,8 @@ async function main() {
         console.log(`    Hubs: ${a.hubs.join(", ")}`);
         console.log(`    Regions: ${a.regions.join(", ")}`);
         console.log(`    Nonstop routes: ${a.nonstopRoutes.length}`);
-        console.log(`    URL: ${a.searchUrl}`);
+        const modes = Object.keys(a.searchModes).join(", ");
+        console.log(`    Search modes: ${modes}`);
         console.log("");
       }
       break;
