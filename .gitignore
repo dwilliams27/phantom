@@ -5,4 +5,6 @@ phantom-extension/nm-shim-launch.sh
 phantom-extension/eval/
 phantom-mcp/dist/
 phantom-mcp/node_modules/
+flights/dist/
+flights/node_modules/
 tmp/
