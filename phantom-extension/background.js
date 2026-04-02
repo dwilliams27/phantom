@@ -136,6 +136,52 @@ async function handleCommand(message) {
       break;
     }
 
+    case "reload_extension": {
+      port.postMessage({ id, result: { reloading: true } });
+      chrome.runtime.reload();
+      break;
+    }
+
+    case "take_snapshot": {
+      const tabId = params.tabId || await getActiveTabId();
+      const [result] = await chrome.scripting.executeScript({
+        target: { tabId },
+        world: "ISOLATED",
+        files: ["snapshot.js"],
+      });
+      port.postMessage({ id, result: result.result });
+      break;
+    }
+
+    case "get_element_rect": {
+      const tabId = params.tabId || await getActiveTabId();
+      const ref = params.ref;
+      const [result] = await chrome.scripting.executeScript({
+        target: { tabId },
+        world: "ISOLATED",
+        func: (ref) => {
+          const el = globalThis.__phantom_refs?.get(ref);
+          if (!el) return { __error: `Ref ${ref} not found` };
+          if (!el.isConnected) return { __error: `Ref ${ref} detached from DOM` };
+          const rect = el.getBoundingClientRect();
+          return {
+            x: rect.x, y: rect.y, width: rect.width, height: rect.height,
+            centerX: rect.x + rect.width / 2, centerY: rect.y + rect.height / 2,
+            screenX: window.screenX + rect.x,
+            screenY: window.screenY + (window.outerHeight - window.innerHeight) + rect.y,
+          };
+        },
+        args: [ref],
+      });
+      const val = result.result;
+      if (val?.__error) {
+        port.postMessage({ id, error: val.__error });
+      } else {
+        port.postMessage({ id, result: val });
+      }
+      break;
+    }
+
     default:
       port.postMessage({ id, error: `Unknown command: ${command}` });
       break;

@@ -15,11 +15,10 @@ let msgCounter = 1;
 const pendingResponses = new Map();
 let testsPassed = 0;
 let testsFailed = 0;
+let reloaded = false;
 
-const server = net.createServer((client) => {
-  console.log("[harness] Client connected");
+function setupClient(client) {
   activeClient = client;
-
   let buffer = "";
   client.on("data", (chunk) => {
     buffer += chunk.toString("utf-8");
@@ -37,18 +36,31 @@ const server = net.createServer((client) => {
       }
     }
   });
+  client.on("close", () => { console.log("[harness] Client disconnected"); activeClient = null; });
+  client.on("error", (err) => { console.error("[harness] Client error:", err.message); activeClient = null; });
+}
 
-  client.on("close", () => {
-    console.log("[harness] Client disconnected");
-    activeClient = null;
-  });
+const server = net.createServer((client) => {
+  console.log("[harness] Client connected");
+  setupClient(client);
 
-  client.on("error", (err) => {
-    console.error("[harness] Client error:", err.message);
-    activeClient = null;
-  });
-
-  runTests(client);
+  if (!reloaded) {
+    // First connection: reload extension to pick up latest code from disk
+    reloaded = true;
+    console.log("[harness] Reloading extension to pick up latest code...");
+    sendCommand(client, "reload_extension").then(() => {
+      console.log("[harness] Extension reloading, waiting for reconnect...");
+      // After reload, service worker may not wake until an event fires.
+      // Navigate a tab to trigger tabs.onUpdated which wakes it.
+      setTimeout(() => {
+        const { execSync } = require("child_process");
+        execSync(`osascript -e 'tell application "Google Chrome" to set URL of active tab of front window to "https://example.com"'`, { stdio: "ignore" });
+      }, 2000);
+    });
+  } else {
+    // Second connection (post-reload): run tests
+    runTests(client);
+  }
 });
 
 function sendCommand(client, command, params = {}, timeoutMs = 10000) {
@@ -108,9 +120,29 @@ async function runTests(client) {
   // so we can't test successful navigation here. Verify the commands return
   // a structured error (not crash) when there's no history.
   const back = await sendCommand(client, "go_back");
-  assert("go_back returns error when no history", typeof back.error === "string");
+  assert("go_back returns error when no history", typeof back.error === "string", JSON.stringify(back));
   const fwd = await sendCommand(client, "go_forward");
-  assert("go_forward returns error when no history", typeof fwd.error === "string");
+  assert("go_forward returns error when no history", typeof fwd.error === "string", JSON.stringify(fwd));
+
+  // 8. Snapshot on example.com (navigate back first)
+  await sendCommand(client, "navigate_page", { url: "https://example.com" });
+  const snap = await sendCommand(client, "take_snapshot");
+  if (snap.error) console.log("  [snapshot error]:", snap.error);
+  if (snap.result?.tree) console.log("\n--- SNAPSHOT ---\n" + snap.result.tree + "\n--- END ---\n");
+  assert("take_snapshot returns tree string", typeof snap.result?.tree === "string", JSON.stringify(snap).substring(0, 200));
+  assert("take_snapshot returns refCount", typeof snap.result?.refCount === "number");
+  assert("snapshot contains heading", snap.result?.tree?.includes('heading "Example Domain"'));
+  assert("snapshot contains link with ref", snap.result?.tree?.match(/\[\d+\] link "/));
+  assert("snapshot has refs", snap.result?.refCount > 0);
+
+  // 9. get_element_rect on ref 0
+  const rect = await sendCommand(client, "get_element_rect", { ref: 0 });
+  assert("get_element_rect returns coordinates", typeof rect.result?.centerX === "number");
+  assert("get_element_rect returns screenX", typeof rect.result?.screenX === "number");
+
+  // 10. get_element_rect on invalid ref
+  const badRect = await sendCommand(client, "get_element_rect", { ref: 9999 });
+  assert("get_element_rect invalid ref returns error", typeof badRect.error === "string", JSON.stringify(badRect));
 
   // Summary
   console.log("");
@@ -120,7 +152,7 @@ async function runTests(client) {
   console.log("");
 
   if (INTERACTIVE) {
-    console.log("Entering interactive mode. Commands: ping, echo <text>, tabs, nav <url>, back, forward, quit");
+    console.log("Entering interactive mode. Commands: ping, echo <text>, tabs, nav <url>, back, forward, snapshot, rect <N>, quit");
   } else {
     process.exit(testsFailed > 0 ? 1 : 0);
   }
@@ -149,10 +181,18 @@ if (INTERACTIVE) {
       sendCommand(activeClient, "go_back").then(r => console.log("  =>", JSON.stringify(r)));
     } else if (trimmed === "forward") {
       sendCommand(activeClient, "go_forward").then(r => console.log("  =>", JSON.stringify(r)));
+    } else if (trimmed === "snapshot") {
+      sendCommand(activeClient, "take_snapshot").then(r => {
+        if (r.result?.tree) { console.log("\n" + r.result.tree + "\n"); console.log(`(${r.result.refCount} refs)`); }
+        else console.log("  =>", JSON.stringify(r));
+      });
+    } else if (trimmed.startsWith("rect ")) {
+      const ref = parseInt(trimmed.substring(5), 10);
+      sendCommand(activeClient, "get_element_rect", { ref }).then(r => console.log("  =>", JSON.stringify(r)));
     } else if (trimmed === "quit") {
       shutdown();
     } else {
-      console.log("Commands: ping, echo <text>, tabs, nav <url>, back, forward, quit");
+      console.log("Commands: ping, echo <text>, tabs, nav <url>, back, forward, snapshot, rect <N>, quit");
     }
   });
 }
