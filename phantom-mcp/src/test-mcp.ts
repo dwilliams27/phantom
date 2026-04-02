@@ -1,5 +1,8 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
 let passed = 0;
 let failed = 0;
@@ -107,6 +110,21 @@ async function main() {
     // 12. scroll
     const scrollResult = await client.callTool({ name: "scroll", arguments: { direction: "down" } });
     assert("scroll succeeds", getText(scrollResult).includes("Scrolled"), getText(scrollResult));
+
+    // 13. take_screenshot
+    await client.callTool({ name: "navigate_page", arguments: { url: "https://example.com" } });
+    const screenshot = await client.callTool({ name: "take_screenshot", arguments: {} });
+    const imgContent = (screenshot.content as any[])[0];
+    assert("screenshot returns image type", imgContent?.type === "image", imgContent?.type);
+    assert("screenshot has mimeType", imgContent?.mimeType === "image/png");
+    const pngBuffer = Buffer.from(imgContent?.data ?? "", "base64");
+    assert("screenshot is valid PNG", pngBuffer[0] === 0x89 && pngBuffer[1] === 0x50 && pngBuffer[2] === 0x4E && pngBuffer[3] === 0x47);
+    assert("screenshot has reasonable size", pngBuffer.length > 1024, `${pngBuffer.length} bytes`);
+    const tmpDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../tmp");
+    fs.mkdirSync(tmpDir, { recursive: true });
+    const screenshotPath = path.join(tmpDir, "test_screenshot.png");
+    fs.writeFileSync(screenshotPath, pngBuffer);
+    console.log(`  [screenshot saved to ${screenshotPath}]`);
 
   } finally {
     await client.close();

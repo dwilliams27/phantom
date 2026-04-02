@@ -3,6 +3,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { ExtensionClient } from "./extension-client.js";
 import * as cliclick from "./cliclick.js";
+import * as screencapture from "./screencapture.js";
 
 const extensionClient = new ExtensionClient();
 
@@ -82,6 +83,14 @@ server.registerTool("get_element_rect", {
     tabId: optionalTabId,
   },
 }, ({ ref, tabId }) => callExtension("get_element_rect", { ref, tabId }));
+
+server.registerTool("take_screenshot", {
+  description: "Capture a screenshot of the Chrome window. Returns a PNG image for visual context.",
+  inputSchema: {},
+}, () => {
+  const base64 = screencapture.captureWindow();
+  return { content: [{ type: "image" as const, data: base64, mimeType: "image/png" as const }] };
+});
 
 // --- Evaluation ---
 
