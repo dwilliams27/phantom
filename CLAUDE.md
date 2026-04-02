@@ -31,11 +31,12 @@ Claude Code -> stdio -> Phantom MCP Server (TypeScript/Node.js) -> Native Messag
 - `docs/decisions/NNN-title.md` -- ADRs
 - `docs/enhancements.md` -- running wishlist of planned improvements
 - `docs/phase1_plan.md` -- Phase 1 sub-phase plan and progress tracker
-- `phantom-extension/` -- Chrome extension (background.js, snapshot.js, nm-shim.js)
-- `scripts/` -- test harness, setup, e2e test runner
-- `screenshots/` -- debug captures
+- `phantom-extension/` -- Chrome extension (background.js, snapshot.js, nm-shim.js, page-status.js)
+- `phantom-mcp/` -- MCP server (TypeScript, stdio transport, cliclick/screencapture wrappers)
+- `scripts/` -- test harness, setup, e2e test runner (`./scripts/run_harness_test.sh`)
+- `.mcp.json` -- Claude Code MCP server configuration
 
-Planned (not yet created): `phantom-mcp/` (Phase 2), `tasks/{airline}/TASK.md` (Phase 3), `config/` (Phase 3), `results/` (Phase 3).
+Planned (not yet created): `tasks/{airline}/TASK.md` (Phase 3), `config/` (Phase 3), `results/` (Phase 3).
 
 ## Phases
 

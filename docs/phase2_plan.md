@@ -116,11 +116,11 @@ Full pipeline test proving Claude Code can drive Chrome autonomously.
 
 | Sub-phase | Status | Notes |
 |-----------|--------|-------|
-| 2A: MCP Server Scaffold + Extension Client | Not started | |
-| 2B: Navigation + Observation Tools | Not started | |
-| 2C: cliclick Integration | Not started | |
-| 2D: screencapture Integration | Not started | |
-| 2E: End-to-End Integration Test | Not started | |
+| 2A: MCP Server Scaffold + Extension Client | Complete | Ping round-trip proven via StdioClientTransport |
+| 2B: Navigation + Observation Tools | Complete | 10 tools, all delegating to extension |
+| 2C: cliclick Integration | Complete | 7 tools, execFileSync (no shell), easing + batched scroll |
+| 2D: screencapture Integration | Complete | Swift window ID + screencapture, PNG dump to tmp/ |
+| 2E: End-to-End Integration Test | Complete | 65 tests (39 extension + 26 MCP), click navigates page |
 
 ## Tool Registration Summary
 
