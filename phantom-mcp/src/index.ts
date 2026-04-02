@@ -88,7 +88,8 @@ server.registerTool("take_screenshot", {
   description: "Capture a screenshot of the Chrome window. Returns a PNG image for visual context.",
   inputSchema: {},
 }, () => {
-  const base64 = screencapture.captureWindow();
+  const { base64, savedPath } = screencapture.captureWindow();
+  console.error(`[phantom-mcp] Screenshot saved: ${savedPath}`);
   return { content: [{ type: "image" as const, data: base64, mimeType: "image/png" as const }] };
 });
 
