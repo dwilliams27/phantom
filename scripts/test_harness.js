@@ -184,7 +184,26 @@ async function runTests(client) {
   const evalError = await evalScript(client, "(() => { throw new Error('test error'); })()");
   assert("evaluate_script error returns __error", typeof evalError.error === "string" && evalError.error.includes("test error"), JSON.stringify(evalError));
 
-  // 14. Interactive command parsing (exercises the same paths as readline dispatch)
+  // 14. check_page_status on example.com (no login, no captcha, no error)
+  const status = await sendCommand(client, "check_page_status");
+  assert("check_page_status returns url", status.result?.url?.includes("example.com"), JSON.stringify(status));
+  assert("check_page_status no login form", status.result?.hasLoginForm === false);
+  assert("check_page_status no captcha", status.result?.hasCaptcha === false);
+  assert("check_page_status no error", status.result?.hasError === false);
+
+  // 15. wait_for with selector that exists immediately
+  const waitFound = await sendCommand(client, "wait_for", { selector: "h1", timeout: 3000 });
+  assert("wait_for finds existing selector", waitFound.result?.found === true, JSON.stringify(waitFound));
+
+  // 16. wait_for with text that exists
+  const waitText = await sendCommand(client, "wait_for", { text: "Example Domain", timeout: 3000 });
+  assert("wait_for finds existing text", waitText.result?.found === true, JSON.stringify(waitText));
+
+  // 17. wait_for with selector that doesn't exist (short timeout)
+  const waitMissing = await sendCommand(client, "wait_for", { selector: ".nonexistent", timeout: 1500 }, 15000);
+  assert("wait_for times out on missing selector", waitMissing.result?.found === false, JSON.stringify(waitMissing));
+
+  // 18. Interactive command parsing (exercises the same paths as readline dispatch)
   const interactiveTests = [
     { input: "ping", expected: { command: "ping" } },
     { input: "tabs", expected: { command: "list_pages" } },
@@ -195,6 +214,9 @@ async function runTests(client) {
     { input: "snapshot", expected: { command: "take_snapshot" } },
     { input: "rect 5", expected: { command: "get_element_rect", params: { ref: 5 } } },
     { input: "eval document.title", expected: { command: "eval", params: { js: "document.title" } } },
+    { input: "status", expected: { command: "check_page_status" } },
+    { input: "wait h1", expected: { command: "wait_for", params: { selector: "h1" } } },
+    { input: "waittext Example", expected: { command: "wait_for", params: { text: "Example" } } },
   ];
   for (const { input, expected } of interactiveTests) {
     const parsed = parseInteractiveCommand(input);
@@ -211,7 +233,7 @@ async function runTests(client) {
   console.log("");
 
   if (INTERACTIVE) {
-    console.log("Entering interactive mode. Commands: ping, echo <text>, tabs, nav <url>, back, forward, snapshot, rect <N>, eval <js>, quit");
+    console.log("Entering interactive mode. Commands: ping, echo <text>, tabs, nav <url>, back, forward, snapshot, rect <N>, eval <js>, status, wait <selector>, waittext <text>, quit");
   } else {
     process.exit(testsFailed > 0 ? 1 : 0);
   }
@@ -234,6 +256,9 @@ function parseInteractiveCommand(input) {
   if (trimmed === "snapshot") return { command: "take_snapshot" };
   if (trimmed.startsWith("rect ")) return { command: "get_element_rect", params: { ref: parseInt(trimmed.substring(5), 10) } };
   if (trimmed.startsWith("eval ")) return { command: "eval", params: { js: trimmed.substring(5) } };
+  if (trimmed === "status") return { command: "check_page_status" };
+  if (trimmed.startsWith("wait ")) return { command: "wait_for", params: { selector: trimmed.substring(5) } };
+  if (trimmed.startsWith("waittext ")) return { command: "wait_for", params: { text: trimmed.substring(9) } };
   if (trimmed === "quit") return { command: "quit" };
   return null;
 }
@@ -243,7 +268,7 @@ if (INTERACTIVE) {
   rl.on("line", (line) => {
     if (!activeClient) { console.log("[harness] No client connected"); return; }
     const parsed = parseInteractiveCommand(line);
-    if (!parsed) { console.log("Commands: ping, echo <text>, tabs, nav <url>, back, forward, snapshot, rect <N>, eval <js>, quit"); return; }
+    if (!parsed) { console.log("Commands: ping, echo <text>, tabs, nav <url>, back, forward, snapshot, rect <N>, eval <js>, status, wait <selector>, waittext <text>, quit"); return; }
     if (parsed.command === "quit") { shutdown(); return; }
     if (parsed.command === "eval") {
       evalScript(activeClient, parsed.params.js).then(r => console.log("  =>", JSON.stringify(r.result ?? r.error)));

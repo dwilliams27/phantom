@@ -153,6 +153,42 @@ async function handleCommand(message) {
       break;
     }
 
+    case "check_page_status": {
+      const tabId = params.tabId || await getActiveTabId();
+      const [result] = await chrome.scripting.executeScript({
+        target: { tabId },
+        world: "ISOLATED",
+        files: ["page-status.js"],
+      });
+      port.postMessage({ id, result: result.result });
+      break;
+    }
+
+    case "wait_for": {
+      const tabId = params.tabId || await getActiveTabId();
+      const timeout = params.timeout || 10000;
+      const start = Date.now();
+      while (Date.now() - start < timeout) {
+        const [result] = await chrome.scripting.executeScript({
+          target: { tabId },
+          world: "ISOLATED",
+          func: (selector, text) => {
+            if (selector && document.querySelector(selector)) return true;
+            if (text && document.body?.innerText?.includes(text)) return true;
+            return false;
+          },
+          args: [params.selector || null, params.text || null],
+        });
+        if (result.result) {
+          port.postMessage({ id, result: { found: true, elapsed: Date.now() - start } });
+          return;
+        }
+        await new Promise(r => setTimeout(r, 500));
+      }
+      port.postMessage({ id, result: { found: false, elapsed: Date.now() - start } });
+      break;
+    }
+
     case "evaluate_script": {
       const tabId = params.tabId || await getActiveTabId();
       const [result] = await chrome.scripting.executeScript({
