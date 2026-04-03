@@ -62,5 +62,53 @@
       "classSelection": true
     },
     "status": "onboarded"
+  },
+  {
+    "id": "air_france",
+    "name": "Air France",
+    "searchModes": {
+      "points": {
+        "taskPath": "flights/tasks/air_france/TASK_points.md",
+        "searchUrl": "https://wwws.airfrance.fr/en"
+      },
+      "dollars": {
+        "taskPath": "flights/tasks/air_france/TASK_dollars.md",
+        "searchUrl": "https://wwws.airfrance.fr/en"
+      }
+    },
+    "hubs": ["CDG"],
+    "regions": ["americas", "europe", "asia", "africa", "oceania"],
+    "nonstopRoutes": [
+      "CDG-ABJ", "CDG-ABV", "CDG-AGP", "CDG-AJA", "CDG-ALG", "CDG-AMS", "CDG-ARN", "CDG-ATH",
+      "CDG-ATL", "CDG-BCN", "CDG-BER", "CDG-BES", "CDG-BEY", "CDG-BGO", "CDG-BHX", "CDG-BIA",
+      "CDG-BIO", "CDG-BIQ", "CDG-BKK", "CDG-BLL", "CDG-BLQ", "CDG-BLR", "CDG-BOD", "CDG-BOG",
+      "CDG-BOM", "CDG-BOS", "CDG-BRI", "CDG-BSL", "CDG-BUD", "CDG-BZV", "CDG-CAG", "CDG-CAI",
+      "CDG-CAY", "CDG-CFE", "CDG-CKY", "CDG-CLY", "CDG-CMN", "CDG-COO", "CDG-CPH", "CDG-CPT",
+      "CDG-CTA", "CDG-CUN", "CDG-DBV", "CDG-DEL", "CDG-DEN", "CDG-DFW", "CDG-DLA", "CDG-DSS",
+      "CDG-DTW", "CDG-DUB", "CDG-DUS", "CDG-DXB", "CDG-EDI", "CDG-EVN", "CDG-EWR", "CDG-EZE",
+      "CDG-FAO", "CDG-FCO", "CDG-FDF", "CDG-FIH", "CDG-FLR", "CDG-FOR", "CDG-FRA", "CDG-FSC",
+      "CDG-GIG", "CDG-GOT", "CDG-GRU", "CDG-GVA", "CDG-HAJ", "CDG-HAM", "CDG-HAV", "CDG-HEL",
+      "CDG-HER", "CDG-HKG", "CDG-HKT", "CDG-HND", "CDG-IAD", "CDG-IAH", "CDG-IBZ", "CDG-ICN",
+      "CDG-IST", "CDG-JFK", "CDG-JIB", "CDG-JMK", "CDG-JNB", "CDG-JRO", "CDG-JTR", "CDG-KIX",
+      "CDG-KRK", "CDG-KTT", "CDG-LAS", "CDG-LAX", "CDG-LBV", "CDG-LFW", "CDG-LGW", "CDG-LHR",
+      "CDG-LIM", "CDG-LIN", "CDG-LIS", "CDG-LJU", "CDG-LOS", "CDG-LYS", "CDG-MAD", "CDG-MAN",
+      "CDG-MCO", "CDG-MEX", "CDG-MIA", "CDG-MLA", "CDG-MLE", "CDG-MNL", "CDG-MPL", "CDG-MRS",
+      "CDG-MRU", "CDG-MSP", "CDG-MSY", "CDG-MUC", "CDG-MXP", "CDG-NAP", "CDG-NBJ", "CDG-NBO",
+      "CDG-NCE", "CDG-NCL", "CDG-NDJ", "CDG-NKC", "CDG-NSI", "CDG-NTE", "CDG-NUE", "CDG-OLB",
+      "CDG-OPO", "CDG-ORD", "CDG-ORK", "CDG-ORN", "CDG-OSL", "CDG-OTP", "CDG-PEK", "CDG-PHX",
+      "CDG-PMI", "CDG-PMO", "CDG-PNR", "CDG-PRG", "CDG-PTP", "CDG-PTY", "CDG-PUF", "CDG-PUJ",
+      "CDG-PVG", "CDG-RAK", "CDG-RBA", "CDG-RDU", "CDG-RHO", "CDG-RNS", "CDG-RUH", "CDG-RUN",
+      "CDG-RVN", "CDG-SAN", "CDG-SCL", "CDG-SEA", "CDG-SFO", "CDG-SGN", "CDG-SIN", "CDG-SJO",
+      "CDG-SPU", "CDG-SSA", "CDG-SSG", "CDG-SVQ", "CDG-SXM", "CDG-TFS", "CDG-TIA", "CDG-TLS",
+      "CDG-TLV", "CDG-TNG", "CDG-TNR", "CDG-TOS", "CDG-TRN", "CDG-TUN", "CDG-VCE", "CDG-VIE",
+      "CDG-VLC", "CDG-VRN", "CDG-WAW", "CDG-YOW", "CDG-YQB", "CDG-YUL", "CDG-YVR", "CDG-YYZ",
+      "CDG-ZAG", "CDG-ZNZ", "CDG-ZRH"
+    ],
+    "capabilities": {
+      "oneWay": true,
+      "roundTrip": true,
+      "classSelection": true
+    },
+    "status": "onboarded"
   }
 ]
