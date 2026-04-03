@@ -1,4 +1,4 @@
-import { execFileSync, execSync } from "child_process";
+import { execFileSync, execSync, spawnSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -85,7 +85,7 @@ Follow the instructions below to complete the search. Return ALL flight results 
 ${taskContent}`;
 }
 
-export async function executeSearch(target: SearchTarget, airlineId: string, dateMode: "mid" | "random" = "mid"): Promise<any> {
+export async function executeSearch(target: SearchTarget, airlineId: string, dateMode: "mid" | "random" = "mid", fast = false): Promise<any> {
   const airline = getAirline(airlineId);
   if (!airline) throw new Error(`Airline not found: ${airlineId}`);
 
@@ -113,15 +113,58 @@ export async function executeSearch(target: SearchTarget, airlineId: string, dat
   launchChrome();
   await new Promise(r => setTimeout(r, 3000));
 
-  // Run Claude
+  // Run Claude with full conversation logging
+  const logDir = path.join(REPO_ROOT, "tmp", "agent_logs");
+  fs.mkdirSync(logDir, { recursive: true });
+  const logPath = path.join(logDir, `${run.id}.jsonl`);
+
   let output: string;
   try {
     try {
-      output = execFileSync("claude", ["-p", "--permission-mode", "bypassPermissions", prompt], {
+      // stream-json captures every message + tool call for audit
+      // Use spawnSync with maxBuffer to handle large stream output
+      const claudeArgs = [
+        "-p", "--permission-mode", "bypassPermissions",
+        "--output-format", "stream-json", "--verbose",
+      ];
+      if (fast) {
+        claudeArgs.push("--model", "haiku");
+        console.error("  ⚡ Fast mode: using Haiku (testing only, not for production)");
+      }
+      claudeArgs.push(prompt);
+
+      const result = spawnSync("claude", claudeArgs, {
         encoding: "utf-8",
         cwd: REPO_ROOT,
         timeout: 300000,
-      }).trim();
+        maxBuffer: 50 * 1024 * 1024, // 50MB
+      });
+
+      if (result.error) throw result.error;
+      if (result.status !== 0) throw new Error(`Claude exited with code ${result.status}: ${result.stderr?.substring(0, 500)}`);
+
+      const rawOutput = result.stdout;
+
+      // Write full stream log for audit
+      fs.writeFileSync(logPath, rawOutput);
+      console.error(`  Agent log saved: ${logPath}`);
+
+      // Extract the final assistant text from the stream
+      const lines = rawOutput.trim().split("\n").filter(Boolean);
+      let lastText = "";
+      for (const line of lines) {
+        try {
+          const event = JSON.parse(line);
+          if (event.type === "result" && event.result?.text) {
+            lastText = event.result.text;
+          } else if (event.type === "assistant" && event.message?.content) {
+            for (const block of event.message.content) {
+              if (block.type === "text") lastText = block.text;
+            }
+          }
+        } catch (_) { /* skip non-JSON lines from verbose output */ }
+      }
+      output = lastText.trim();
     } finally {
       killChrome();
     }

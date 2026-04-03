@@ -141,8 +141,9 @@ server.registerTool("click", {
   const center = await getScreenCenter(ref, tabId);
   cliclick.moveTo(center.x, center.y);
   await new Promise(r => setTimeout(r, 50));
-  cliclick.click(center.x, center.y);
-  return textResult(`Clicked element [${ref}]`);
+  const result = cliclick.click(center.x, center.y);
+  const msg = `Clicked element [${ref}]`;
+  return textResult(result.wasClamped ? `${msg} (WARNING: coordinates were outside Chrome window and were clamped to the nearest edge. The element may be off-screen -- try scrolling first.)` : msg);
 });
 
 server.registerTool("click_at", {
@@ -154,8 +155,9 @@ server.registerTool("click_at", {
 }, async ({ x, y }) => {
   cliclick.moveTo(x, y);
   await new Promise(r => setTimeout(r, 50));
-  cliclick.click(x, y);
-  return textResult(`Clicked at (${x}, ${y})`);
+  const result = cliclick.click(x, y);
+  const msg = `Clicked at (${x}, ${y})`;
+  return textResult(result.wasClamped ? `${msg} (WARNING: coordinates were outside Chrome window and were clamped. The target may be off-screen.)` : msg);
 });
 
 server.registerTool("mouse_move", {
@@ -203,7 +205,7 @@ server.registerTool("press_key", {
 });
 
 server.registerTool("scroll", {
-  description: "Scroll the page up or down using keyboard simulation",
+  description: "Scroll the page up or down using arrow key simulation. If a form input has focus, click the page body first to ensure scrolling affects the page rather than the input.",
   inputSchema: {
     direction: z.enum(["up", "down"]).describe("Scroll direction"),
     amount: z.number().optional().describe("Number of pages to scroll (default 1)"),

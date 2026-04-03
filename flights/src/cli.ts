@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 import { execFileSync } from "child_process";
+import fs from "fs";
+import path from "path";
 import readline from "readline";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import { searchTargetInputSchema, resolveDateSpec } from "./schema.js";
 import { createTarget, listTargets, getTarget, deactivateTarget, activateTarget } from "./db.js";
 import { loadRegistry, findAirlinesForRoute, hasNonstop } from "./registry.js";
@@ -175,8 +180,8 @@ async function main() {
     }
 
     case "run": {
-      const id = args[0];
-      if (!id) { console.error("Usage: cli run <target-id> [--airline <id>]"); process.exit(1); }
+      const id = args.filter(a => !a.startsWith("--"))[0];
+      if (!id) { console.error("Usage: cli run <target-id> [--airline <id>] [--fast]"); process.exit(1); }
       const target = getTarget(id);
       if (!target) { console.error(`Target not found: ${id}`); process.exit(1); }
       if (target.airlines.length === 0) { console.error("No airlines assigned to this target. Use 'add' with airline suggestions first."); process.exit(1); }
@@ -184,15 +189,17 @@ async function main() {
       const airlineFlag = args.indexOf("--airline");
       if (airlineFlag !== -1 && !args[airlineFlag + 1]) { console.error("--airline requires a value"); process.exit(1); }
       const airlineIds = airlineFlag !== -1 ? [args[airlineFlag + 1]] : target.airlines;
+      const fast = args.includes("--fast");
 
       console.log(`Running search: ${target.name}`);
       console.log(`  Route: ${target.origin} → ${target.destination}`);
       console.log(`  Mode: ${target.searchMode} | Class: ${target.class}`);
       console.log(`  Airlines: ${airlineIds.join(", ")}`);
+      if (fast) console.log(`  ⚡ Fast mode (Haiku) -- testing only`);
       console.log("");
 
       for (const airlineId of airlineIds) {
-        const results = await executeSearch(target, airlineId);
+        const results = await executeSearch(target, airlineId, "mid", fast);
         if (results.flights?.length) {
           const ctx = { targetId: target.id, airlineId, origin: target.origin, destination: target.destination, departureDate: results.departureDate || "unknown" };
           const ranked = processAlertPipeline(ctx, results.flights, target.class);
@@ -207,14 +214,15 @@ async function main() {
     }
 
     case "run-all": {
+      const fastAll = args.includes("--fast");
       const targets = listTargets(true);
       if (targets.length === 0) { console.log("No active search targets."); break; }
       const allTasks = targets.flatMap(t => t.airlines.map(a => ({ target: t, airlineId: a })));
-      console.log(`Running ${allTasks.length} searches across ${targets.length} targets (no delays)...\n`);
+      console.log(`Running ${allTasks.length} searches across ${targets.length} targets (no delays)${fastAll ? " ⚡ Fast mode" : ""}...\n`);
       for (let i = 0; i < allTasks.length; i++) {
         const { target, airlineId } = allTasks[i];
         console.log(`[${i + 1}/${allTasks.length}] ${target.name} via ${airlineId}`);
-        const results = await executeSearch(target, airlineId);
+        const results = await executeSearch(target, airlineId, "mid", fastAll);
         if (results.flights?.length) {
           const ctx = { targetId: target.id, airlineId, origin: target.origin, destination: target.destination, departureDate: results.departureDate || "unknown" };
           const ranked = processAlertPipeline(ctx, results.flights, target.class);
@@ -238,6 +246,31 @@ async function main() {
           const duration = r.finishedAt ? `${((new Date(r.finishedAt).getTime() - new Date(r.startedAt).getTime()) / 1000).toFixed(0)}s` : "running";
           console.log(`  ${r.status.padEnd(14)} ${r.airlineId.padEnd(20)} ${r.departureDate}  ${duration.padStart(5)}  ${r.resultCount ?? "-"} flights  ${r.startedAt}`);
           if (r.errorMessage) console.log(`    Error: ${r.errorMessage.substring(0, 100)}`);
+        }
+      }
+      break;
+    }
+
+    case "agent-log": {
+      const runId = args[0];
+      if (!runId) { console.error("Usage: cli agent-log <run-id>"); process.exit(1); }
+      const logPath = path.join(__dirname, "../../tmp/agent_logs", `${runId}.jsonl`);
+      if (!fs.existsSync(logPath)) { console.error(`No log found for run ${runId}. Check 'runs' command for valid run IDs.`); process.exit(1); }
+      const lines = fs.readFileSync(logPath, "utf-8").trim().split("\n").filter(Boolean);
+      console.log(`Agent conversation log for run ${runId} (${lines.length} events):\n`);
+      for (const line of lines) {
+        const event = JSON.parse(line);
+        if (event.type === "assistant" && event.message?.content) {
+          for (const block of event.message.content) {
+            if (block.type === "text") console.log(`[assistant] ${block.text.substring(0, 200)}${block.text.length > 200 ? "..." : ""}`);
+            if (block.type === "tool_use") console.log(`[tool_call] ${block.name}(${JSON.stringify(block.input).substring(0, 100)})`);
+          }
+        } else if (event.type === "tool_result") {
+          const content = event.content?.[0];
+          if (content?.type === "text") console.log(`[tool_result] ${content.text.substring(0, 150)}${content.text.length > 150 ? "..." : ""}`);
+          else if (content?.type === "image") console.log(`[tool_result] <image>`);
+        } else if (event.type === "result") {
+          console.log(`[final] ${event.result?.text?.substring(0, 300) || "(no text)"}`);
         }
       }
       break;
@@ -293,6 +326,7 @@ async function main() {
       console.log("  run-all                    Run all active targets (no delays)");
       console.log("  runs [target-id]           Show recent run history");
       console.log("  alerts [target-id]         Show alert history");
+      console.log("  agent-log <run-id>         Show agent conversation log");
       console.log("  results <target-id>        Show past search results");
       break;
   }
