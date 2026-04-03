@@ -16,6 +16,23 @@ Running list of planned improvements, ideas, and deferred features. Remove items
 - **Web dashboard**: Local web UI for managing the flight search system. View search tasks at a glance, add/edit/delete them intuitively. Configure overnight orchestration settings. See scheduled crons with their status and next-run times. Should feel like a simple control panel, not a developer tool.
 - **Remote access**: Host UI on fly.dev as a thin frontend that proxies to the local API over a strict, limited set of endpoints. Shared with a small group of people. Auth is a single hardcoded secret (passphrase) — simplest viable approach, no user accounts or OAuth. Security considerations: allowlist of callable functions, no raw eval or shell access exposed.
 
+## Cloud Deployment (GCP)
+
+Move the entire system to the cloud so it runs without a local Mac.
+
+**Architecture**: Chromium + extension + Xvfb in Docker on Cloud Run Jobs (scale to zero). Claude Code via OAuth token env var. Telegram webhook on a lightweight Cloud Run Service. Next.js frontend on Cloud Run. Firestore or Cloud SQL for storage. Cloud Scheduler triggers overnight runs.
+
+**Trade-offs vs local Mac**:
+- (+) No Mac running overnight, accessible from anywhere, shared frontend
+- (+) `chrome.tabs.captureVisibleTab()` replaces screencapture (simpler, cross-platform -- worth adopting on Mac too)
+- (-) `cliclick` doesn't exist on Linux -- must use `xdotool` on Xvfb. Needs Phase 0-style `isTrusted` validation. If xdotool fails, fallback is `chrome.debugger` which reintroduces CDP
+- (-) Datacenter IPs are detectable by anti-bot systems -- residential proxy mandatory ($4-30/month)
+- (-) No real GPU -- SwiftShader software rendering changes WebGL fingerprint. Not a bot signal but a different device identity. Stealth audit must be re-run
+- (-) Must use Chromium (not branded Chrome) since Chrome 137 removed `--load-extension` from branded builds
+- (-) Cost dominated by Claude Max subscription ($100-200/month). Infrastructure only $5-20/month extra
+
+**Blockers before attempting**: Validate xdotool produces `isTrusted: true` in Chromium on Xvfb. Without this the entire input model breaks.
+
 ## Transfer Bonus Monitoring
 
 - **Credit card transfer promotions**: Scheduled scraping of transfer bonus promotions between credit card points programs (Amex MR, Chase UR, Citi TY, etc.) and airline partners. Catch limited-time deals where points transfer at elevated rates (e.g. 30% bonus Amex→Virgin Atlantic). Alert when a promotion is running that overlaps with airlines/programs relevant to the user's search targets.
