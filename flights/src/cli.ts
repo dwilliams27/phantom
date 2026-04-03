@@ -204,6 +204,26 @@ async function main() {
       break;
     }
 
+    case "run-all": {
+      const targets = listTargets(true);
+      if (targets.length === 0) { console.log("No active search targets."); break; }
+      const allTasks = targets.flatMap(t => t.airlines.map(a => ({ target: t, airlineId: a })));
+      console.log(`Running ${allTasks.length} searches across ${targets.length} targets (no delays)...\n`);
+      for (let i = 0; i < allTasks.length; i++) {
+        const { target, airlineId } = allTasks[i];
+        console.log(`[${i + 1}/${allTasks.length}] ${target.name} via ${airlineId}`);
+        const results = await executeSearch(target, airlineId);
+        if (results.flights?.length) {
+          for (const f of results.flights) {
+            const miles = target.class === "business" ? f.businessMiles : f.economyMiles;
+            console.log(`    ${f.departureTime}→${f.arrivalTime} (${f.duration}) ${miles?.toLocaleString()} miles`);
+          }
+        }
+      }
+      console.log("\nDone.");
+      break;
+    }
+
     case "runs": {
       const id = args[0];
       const runs = getRecentRuns(id);
@@ -243,7 +263,7 @@ async function main() {
 
     default:
       console.log("Usage: cli <command> [args]");
-      console.log("Commands: add, airlines, list, show, disable, enable, run, runs, results");
+      console.log("Commands: add, airlines, list, show, disable, enable, run, run-all, runs, results");
       console.log("");
       console.log("  add \"<natural language>\"   Parse and create a search target");
       console.log("  add --json '{...}'         Create from raw JSON (--yes to auto-accept airlines)");
@@ -253,6 +273,7 @@ async function main() {
       console.log("  disable <id>               Deactivate a target");
       console.log("  enable <id>                Reactivate a target");
       console.log("  run <target-id>            Execute search for a target");
+      console.log("  run-all                    Run all active targets (no delays)");
       console.log("  runs [target-id]           Show recent run history");
       console.log("  results <target-id>        Show past search results");
       break;

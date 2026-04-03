@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "cli": "node dist/cli.js"
+    "cli": "node dist/cli.js",
+    "orchestrate": "node dist/orchestrator.js"
   },
   "dependencies": {
     "better-sqlite3": "^11.0.0",

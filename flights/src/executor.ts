@@ -50,10 +50,14 @@ function killChrome(): void {
   try { fs.unlinkSync("/tmp/phantom.sock"); } catch (_) {}
 }
 
-function pickDepartureDate(target: SearchTarget): string {
+export function pickDepartureDate(target: SearchTarget, mode: "mid" | "random" = "mid"): string {
   const { start, end } = resolveDateSpec(target.dateSpec);
-  const midMs = new Date(start).getTime() + (new Date(end).getTime() - new Date(start).getTime()) / 2;
-  return formatDate(new Date(midMs));
+  const startMs = new Date(start).getTime();
+  const endMs = new Date(end).getTime();
+  if (mode === "random") {
+    return formatDate(new Date(startMs + Math.random() * (endMs - startMs)));
+  }
+  return formatDate(new Date(startMs + (endMs - startMs) / 2));
 }
 
 function buildPrompt(target: SearchTarget, taskContent: string, departureDate: string): string {
@@ -81,7 +85,7 @@ Follow the instructions below to complete the search. Return ALL flight results 
 ${taskContent}`;
 }
 
-export async function executeSearch(target: SearchTarget, airlineId: string): Promise<any> {
+export async function executeSearch(target: SearchTarget, airlineId: string, dateMode: "mid" | "random" = "mid"): Promise<any> {
   const airline = getAirline(airlineId);
   if (!airline) throw new Error(`Airline not found: ${airlineId}`);
 
@@ -90,7 +94,7 @@ export async function executeSearch(target: SearchTarget, airlineId: string): Pr
 
   const fullTaskPath = path.resolve(REPO_ROOT, taskPath);
   const taskContent = fs.readFileSync(fullTaskPath, "utf-8");
-  const departureDate = pickDepartureDate(target);
+  const departureDate = pickDepartureDate(target, dateMode);
   const prompt = buildPrompt(target, taskContent, departureDate);
 
   console.log(`  Searching ${airline.name} for ${target.origin}→${target.destination} on ${departureDate}...`);

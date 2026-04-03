@@ -6,7 +6,7 @@ export type { Airline } from "./registry.js";
 export { executeSearch } from "./executor.js";
 export { saveResults, getResults, getLatestResults } from "./results.js";
 export type { SearchResultRow } from "./results.js";
-export { startRun, completeRun, failRun, getRecentRuns } from "./runs.js";
+export { startRun, completeRun, failRun, getRecentRuns, getRunCountsByAirlineToday } from "./runs.js";
 export type { SearchRun, RunStatus } from "./runs.js";
 export { wasAlerted, recordAlert } from "./alerts.js";
 export type { AlertRecord } from "./alerts.js";

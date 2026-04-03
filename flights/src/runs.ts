@@ -61,6 +61,16 @@ export function failRun(id: string, status: RunStatus, errorMessage: string): vo
   `).run(status, new Date().toISOString(), errorMessage, id);
 }
 
+export function getRunCountsByAirlineToday(): Map<string, number> {
+  const db = getDb();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const rows = db.prepare(
+    "SELECT airline_id, COUNT(*) as cnt FROM search_runs WHERE started_at >= ? GROUP BY airline_id"
+  ).all(today.toISOString()) as Array<{ airline_id: string; cnt: number }>;
+  return new Map(rows.map(r => [r.airline_id, r.cnt]));
+}
+
 export function getRecentRuns(targetId?: string, limit = 20): SearchRun[] {
   const db = getDb();
   if (targetId) {

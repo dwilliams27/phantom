@@ -1,0 +1,6 @@
+{
+  "maxPerAirline": 8,
+  "minDelayMs": 120000,
+  "maxDelayMs": 480000,
+  "enabled": true
+}
