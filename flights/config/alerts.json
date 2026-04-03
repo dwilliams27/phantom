@@ -1,0 +1,19 @@
+{
+  "defaultRanking": {
+    "maxTravelHours": 24,
+    "preferNonstop": true,
+    "topN": 5,
+    "weights": { "price": 0.7, "duration": 0.3 }
+  },
+  "rules": [
+    {
+      "targetId": "*",
+      "conditions": {
+        "maxBusinessPoints": 200000,
+        "maxEconomyPoints": 80000
+      },
+      "channels": ["console"],
+      "cooldownHours": 24
+    }
+  ]
+}

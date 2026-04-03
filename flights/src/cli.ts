@@ -7,6 +7,7 @@ import { loadRegistry, findAirlinesForRoute, hasNonstop } from "./registry.js";
 import { executeSearch } from "./executor.js";
 import { getResults } from "./results.js";
 import { getRecentRuns } from "./runs.js";
+import { processAlertPipeline, getAlertHistory } from "./alerts.js";
 import type { SearchTargetInput } from "./schema.js";
 
 const PARSE_PROMPT = `Parse this flight search request into a structured JSON object. Extract:
@@ -193,10 +194,11 @@ async function main() {
       for (const airlineId of airlineIds) {
         const results = await executeSearch(target, airlineId);
         if (results.flights?.length) {
-          console.log(`\n  Results from ${airlineId}:`);
-          for (const f of results.flights) {
-            const miles = target.class === "business" ? f.businessMiles : f.economyMiles;
-            console.log(`    ${f.departureTime}→${f.arrivalTime} (${f.duration}) ${miles?.toLocaleString()} miles${f.seatsRemaining ? ` [${f.seatsRemaining}]` : ""}`);
+          const ctx = { targetId: target.id, airlineId, origin: target.origin, destination: target.destination, departureDate: results.departureDate || "unknown" };
+          const ranked = processAlertPipeline(ctx, results.flights, target.class);
+          console.log(`\n  Top ${ranked.length} results from ${airlineId} (ranked):`);
+          for (const f of ranked) {
+            console.log(`    [${f.score}] ${f.departureTime}→${f.arrivalTime} (${f.duration}) ${f.relevantMiles.toLocaleString()} miles${f.seatsRemaining ? ` [${f.seatsRemaining}]` : ""}`);
           }
         }
       }
@@ -214,9 +216,10 @@ async function main() {
         console.log(`[${i + 1}/${allTasks.length}] ${target.name} via ${airlineId}`);
         const results = await executeSearch(target, airlineId);
         if (results.flights?.length) {
-          for (const f of results.flights) {
-            const miles = target.class === "business" ? f.businessMiles : f.economyMiles;
-            console.log(`    ${f.departureTime}→${f.arrivalTime} (${f.duration}) ${miles?.toLocaleString()} miles`);
+          const ctx = { targetId: target.id, airlineId, origin: target.origin, destination: target.destination, departureDate: results.departureDate || "unknown" };
+          const ranked = processAlertPipeline(ctx, results.flights, target.class);
+          for (const f of ranked) {
+            console.log(`    [${f.score}] ${f.departureTime}→${f.arrivalTime} (${f.duration}) ${f.relevantMiles.toLocaleString()} miles`);
           }
         }
       }
@@ -235,6 +238,20 @@ async function main() {
           const duration = r.finishedAt ? `${((new Date(r.finishedAt).getTime() - new Date(r.startedAt).getTime()) / 1000).toFixed(0)}s` : "running";
           console.log(`  ${r.status.padEnd(14)} ${r.airlineId.padEnd(20)} ${r.departureDate}  ${duration.padStart(5)}  ${r.resultCount ?? "-"} flights  ${r.startedAt}`);
           if (r.errorMessage) console.log(`    Error: ${r.errorMessage.substring(0, 100)}`);
+        }
+      }
+      break;
+    }
+
+    case "alerts": {
+      const id = args[0];
+      const history = getAlertHistory(id);
+      if (history.length === 0) {
+        console.log("No alerts found.");
+      } else {
+        console.log(`${history.length} recent alert${history.length !== 1 ? "s" : ""}:\n`);
+        for (const a of history) {
+          console.log(`  ${a.alertedAt}  ${a.channel.padEnd(10)}  ${a.flightKey}`);
         }
       }
       break;
@@ -263,7 +280,7 @@ async function main() {
 
     default:
       console.log("Usage: cli <command> [args]");
-      console.log("Commands: add, airlines, list, show, disable, enable, run, run-all, runs, results");
+      console.log("Commands: add, airlines, list, show, disable, enable, run, run-all, runs, alerts, results");
       console.log("");
       console.log("  add \"<natural language>\"   Parse and create a search target");
       console.log("  add --json '{...}'         Create from raw JSON (--yes to auto-accept airlines)");
@@ -275,6 +292,7 @@ async function main() {
       console.log("  run <target-id>            Execute search for a target");
       console.log("  run-all                    Run all active targets (no delays)");
       console.log("  runs [target-id]           Show recent run history");
+      console.log("  alerts [target-id]         Show alert history");
       console.log("  results <target-id>        Show past search results");
       break;
   }

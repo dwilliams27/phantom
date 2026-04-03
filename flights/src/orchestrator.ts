@@ -6,6 +6,7 @@ import { z } from "zod";
 import { listTargets } from "./db.js";
 import { executeSearch } from "./executor.js";
 import { getRunCountsByAirlineToday } from "./runs.js";
+import { processAlertPipeline } from "./alerts.js";
 import type { SearchTarget } from "./schema.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -100,6 +101,12 @@ async function main() {
       const results = await executeSearch(target, airlineId, "random");
       const count = results.flights?.length ?? 0;
       console.log(`[orchestrator] Done: ${count} flights found`);
+
+      if (results.flights?.length) {
+        const ctx = { targetId: target.id, airlineId, origin: target.origin, destination: target.destination, departureDate: results.departureDate || "unknown" };
+        processAlertPipeline(ctx, results.flights, target.class);
+      }
+
       successes++;
     } catch (err) {
       console.error(`[orchestrator] FAILED: ${(err as Error).message}`);
