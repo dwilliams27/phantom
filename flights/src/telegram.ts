@@ -1,10 +1,22 @@
 #!/usr/bin/env node
 import { Telegraf } from "telegraf";
-import { execFileSync } from "child_process";
+import { spawnSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+
+// Auto-load .env from ~/.phantom/.env
+const envPath = path.join(process.env.HOME || "~", ".phantom", ".env");
+if (fs.existsSync(envPath)) {
+  for (const line of fs.readFileSync(envPath, "utf-8").split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq > 0) process.env[trimmed.substring(0, eq)] = trimmed.substring(eq + 1);
+  }
+}
 import { listTargets, getTarget, createTarget } from "./db.js";
+import { executeSearch } from "./executor.js";
 import { getRecentRuns } from "./runs.js";
 import { getResults } from "./results.js";
 import { resolveDateSpec, searchTargetInputSchema } from "./schema.js";
@@ -58,6 +70,9 @@ function formatAlert(flight: RankedFlight, origin: string, destination: string, 
   return `${flightIcon(flight.departureTime)} ${miles}ᴋ ᴍɪʟᴇꜱ ⦁ ${origin} ᐅ ${destination}\n\n  ${cls} ⸱ ${dateStr}\n  ${flight.duration} ⸱ ${stopsStr}\n  ${flight.departureTime} ᐅ ${flight.arrivalTime} ⸱ ${flight.aircraft || ""}${seatStr}`;
 }
 
+// Pending confirmations: chatId → action to execute on confirmation
+const pendingConfirmations = new Map<number, { action: any; target: any }>();
+
 // Exported for use by alerts.ts dispatchAlerts
 let botInstance: Telegraf | null = null;
 
@@ -86,90 +101,154 @@ export async function sendTelegramAlert(flight: RankedFlight, origin: string, de
   }
 }
 
-function parseClaudeResponse(message: string): { action: string; params: any } {
-  const prompt = `You are a flight search assistant parsing a Telegram message. Determine what action the user wants and return ONLY a JSON object with "action" and "params" fields.
+function buildContext(): string {
+  const targets = listTargets(true);
+  const runs = getRecentRuns(undefined, 5);
 
-Available actions:
-- "add": User wants to create a search target. Extract: origin (IATA), destination (IATA), class, passengers, tripType, stops, searchMode, dateSpec, duration. Use the same schema as the flight search system.
-- "list": User wants to see their search targets.
-- "run": User wants to run a search. Extract: targetId (if mentioned), fast (boolean, if they say "fast" or "quick").
-- "results": User wants to see past results. Extract: targetId.
-- "runs": User wants to see run history.
-- "status": User wants a general status update.
-- "help": User needs help understanding commands.
-
-Return ONLY valid JSON like: {"action": "list", "params": {}}
-Or: {"action": "add", "params": {"origin": "IAH", "destination": "HNL", "class": "business", "tripType": "roundtrip", "dateSpec": {"type": "rolling", "earliest": {"offset": 90, "unit": "days"}, "latest": {"offset": 180, "unit": "days"}}}}
-
-User message: "${message.replace(/"/g, '\\"')}"`;
-
-  const result = execFileSync("claude", ["-p", prompt], {
-    encoding: "utf-8",
-    timeout: 30000,
-  }).trim();
-
-  return extractJson(result);
+  let ctx = `You have ${targets.length} active search target${targets.length !== 1 ? "s" : ""}.\n`;
+  if (targets.length > 0) {
+    ctx += "\nTargets:\n";
+    for (const t of targets) {
+      const dates = resolveDateSpec(t.dateSpec);
+      ctx += `- ${t.origin} ᐅ ${t.destination} (${t.class}, ${t.searchMode}) | ${dates.start} to ${dates.end} | airlines: ${t.airlines.join(", ") || "none"} | ID: ${t.id}\n`;
+    }
+  }
+  if (runs.length > 0) {
+    ctx += "\nRecent runs:\n";
+    for (const r of runs) {
+      ctx += `- ${r.status} ${r.airlineId} ${r.departureDate} ${r.resultCount ?? 0} flights\n`;
+    }
+  }
+  return ctx;
 }
 
-async function handleMessage(text: string): Promise<string> {
-  const { action, params } = parseClaudeResponse(text);
+async function handleMessage(text: string, ctx?: any): Promise<string> {
+  // Check for pending confirmation first
+  if (ctx && pendingConfirmations.has(ctx.from.id)) {
+    const lower = text.toLowerCase().trim();
+    const affirmative = ["yes", "y", "yeah", "yep", "yea", "sure", "do it", "go", "ok", "confirm", "approved", "approve", "run it", "go ahead", "send it", "lets go", "let's go"];
+    if (affirmative.includes(lower)) {
+      const pending = pendingConfirmations.get(ctx.from.id)!;
+      pendingConfirmations.delete(ctx.from.id);
+      const { action, target } = pending;
 
-  switch (action) {
-    case "list": {
-      const targets = listTargets(true);
-      if (targets.length === 0) return "No active search targets.";
-      return targets.map(t => {
-        const dates = resolveDateSpec(t.dateSpec);
-        return `⦁ ${t.origin} ᐅ ${t.destination} (${t.class})\n  ${dates.start} to ${dates.end}\n  Airlines: ${t.airlines.join(", ") || "none"}\n  ID: ${t.id}`;
-      }).join("\n\n");
+      // Execute the search in background
+      ctx.reply(`⏳ Searching ${target.origin} ᐅ ${target.destination} via ${target.airlines.join(", ")}...\n\nThis takes a few minutes.`);
+      (async () => {
+        for (const airlineId of target.airlines) {
+          try {
+            const results = await executeSearch(target, airlineId, "mid", action.fast ?? false);
+            const flightCount = results.flights?.length ?? 0;
+            let msg = `✓ Search complete: ${target.origin} ᐅ ${target.destination}\n${flightCount} flights found via ${airlineId}`;
+            if (results.flights?.length) {
+              msg += "\n\n" + results.flights.slice(0, 5).map((f: any) => {
+                const miles = target.class === "business" ? f.businessMiles : f.economyMiles;
+                return `${f.departureTime} ᐅ ${f.arrivalTime} (${f.duration}) ${miles?.toLocaleString()} miles`;
+              }).join("\n");
+            }
+            await ctx.reply(msg);
+          } catch (err) {
+            await ctx.reply(`✗ Search failed for ${airlineId}: ${(err as Error).message.substring(0, 150)}`);
+          }
+        }
+      })();
+      return "";  // empty string = don't send another reply (we already sent one)
+    } else {
+      pendingConfirmations.delete(ctx.from.id);
+      return "Search cancelled.";
     }
+  }
 
-    case "add": {
+  const context = buildContext();
+
+  const prompt = `You are a flight search assistant responding via Telegram. Be conversational, friendly, and concise (Telegram messages should be short).
+
+You can help with flight searches by calling the CLI. Here is the current system state:
+
+${context}
+
+When the user wants to ADD a search target, output a JSON block with the search parameters. Use this format:
+\`\`\`json
+{"action":"add","origin":"IAH","destination":"HNL","class":"business","passengers":1,"tripType":"roundtrip","stops":"any","searchMode":"points","dateSpec":{"type":"rolling","earliest":{"offset":90,"unit":"days"},"latest":{"offset":180,"unit":"days"}},"duration":{"min":7,"max":10,"unit":"days"}}
+\`\`\`
+
+When the user wants to RUN a search for a target, output:
+\`\`\`json
+{"action":"run","targetId":"<id>","fast":false}
+\`\`\`
+Set fast:true only if the user explicitly says "fast" or "quick". If they don't specify a target ID but only have one target, use that one's ID.
+
+When the user wants to see RESULTS for a target, output:
+\`\`\`json
+{"action":"results","targetId":"<id>"}
+\`\`\`
+
+For anything else (chatting, questions, status updates, greetings), just respond naturally. You don't need JSON for casual conversation. Keep responses short and use the ᐅ arrow and other Unicode characters from the system for style consistency.
+
+User message: ${text}`;
+
+  // Zero tools. Claude is purely text-in text-out. All context is injected
+  // into the prompt (targets, runs). All actions are executed by our code
+  // after parsing Claude's JSON output. Claude cannot read files, run
+  // commands, or access any system resources.
+  const child = spawnSync("claude", [
+    "-p",
+    "--permission-mode", "dontAsk",
+    "--allowedTools", "none",
+  ], {
+    input: prompt,
+    encoding: "utf-8",
+    timeout: 60000,
+    maxBuffer: 10 * 1024 * 1024,
+  });
+
+  if (child.error) throw child.error;
+  if (child.status !== 0) throw new Error(`Claude exited ${child.status}: ${child.stderr?.substring(0, 200)}`);
+  const result = child.stdout.trim();
+
+  // Check if Claude included an action JSON block
+  const jsonMatch = result.match(/```json\s*\n([\s\S]*?)\n```/);
+  if (jsonMatch) {
+    const action = JSON.parse(jsonMatch[1]);
+    let actionResult = "";
+
+    if (action.action === "add") {
+      const { action: _, ...params } = action;
       const validated = searchTargetInputSchema.parse(params);
       const airlines = findAirlinesForRoute(validated.origin, validated.destination, validated.stops, validated.searchMode);
       const target = createTarget(validated, airlines.map(a => a.id));
-      return `✓ Target created\n\n⦁ ${target.origin} ᐅ ${target.destination} (${target.class})\n  Airlines: ${target.airlines.join(", ") || "none"}\n  ID: ${target.id}`;
-    }
-
-    case "run": {
-      const targetId = params.targetId;
-      if (!targetId) {
-        const targets = listTargets(true);
-        if (targets.length === 0) return "No active targets to run.";
-        if (targets.length === 1) return `Running search for ${targets[0].origin} ᐅ ${targets[0].destination}...\n\nUse: run ${targets[0].id}`;
-        return "Which target? Send: run <target-id>\n\n" + targets.map(t => `⦁ ${t.origin} ᐅ ${t.destination}: ${t.id}`).join("\n");
+      actionResult = `✓ Target created\n\n⦁ ${target.origin} ᐅ ${target.destination} (${target.class})\n  Airlines: ${target.airlines.join(", ") || "none"}\n  ID: ${target.id}`;
+    } else if (action.action === "run" && action.targetId) {
+      const target = getTarget(action.targetId);
+      if (!target) { actionResult = "Target not found."; }
+      else if (target.airlines.length === 0) { actionResult = "No airlines assigned to this target."; }
+      else if (ctx) {
+        pendingConfirmations.set(ctx.from.id, { action, target });
+        actionResult = `Ready to search ${target.origin} ᐅ ${target.destination} (${target.class}) via ${target.airlines.join(", ")}${action.fast ? " ⚡ fast mode" : ""}.\n\nApprove?`;
       }
-      return `Search started for target ${targetId}. Results will be sent when complete.`;
+    } else if (action.action === "results" && action.targetId) {
+      const rows = getResults(action.targetId);
+      if (rows.length === 0) {
+        actionResult = "No results found for that target.";
+      } else {
+        const latest = rows[0];
+        const parsed = JSON.parse(latest.rawJson);
+        if (parsed.flights?.length) {
+          actionResult = `Latest: ${latest.origin} ᐅ ${latest.destination} (${latest.departureDate})\n${latest.flightCount} flights\n\n` +
+            parsed.flights.slice(0, 5).map((f: any) => `${f.departureTime} ᐅ ${f.arrivalTime} (${f.duration}) ${f.businessMiles?.toLocaleString() || f.economyMiles?.toLocaleString()} miles`).join("\n");
+        } else {
+          actionResult = "No flights in latest results.";
+        }
+      }
     }
 
-    case "results": {
-      const rows = getResults(params.targetId);
-      if (rows.length === 0) return "No results found.";
-      const latest = rows[0];
-      const parsed = JSON.parse(latest.rawJson);
-      if (!parsed.flights?.length) return "No flights in latest results.";
-      return `Latest: ${latest.origin} ᐅ ${latest.destination} (${latest.departureDate})\n${latest.flightCount} flights\n\n` +
-        parsed.flights.slice(0, 5).map((f: any) => `${f.departureTime} ᐅ ${f.arrivalTime} (${f.duration}) ${f.businessMiles?.toLocaleString() || f.economyMiles?.toLocaleString()} miles`).join("\n");
-    }
-
-    case "runs": {
-      const runs = getRecentRuns(params.targetId, 5);
-      if (runs.length === 0) return "No recent runs.";
-      return runs.map(r => `${r.status === "success" ? "✓" : "✗"} ${r.airlineId} ⸱ ${r.departureDate} ⸱ ${r.resultCount ?? 0} flights`).join("\n");
-    }
-
-    case "status": {
-      const targets = listTargets(true);
-      const runs = getRecentRuns(undefined, 5);
-      return `${targets.length} active target${targets.length !== 1 ? "s" : ""}\n${runs.length} recent runs\n\nSay "list" for targets or "runs" for history.`;
-    }
-
-    case "help":
-      return `ꜰʟɪɢʜᴛ ꜱᴇᴀʀᴄʜ ʙᴏᴛ\n\nSay things like:\n⦁ "add business IAD to BKK, 3 months out"\n⦁ "list" — show targets\n⦁ "runs" — recent history\n⦁ "results <id>" — past results\n⦁ "status" — overview`;
-
-    default:
-      return "I didn't understand that. Say \"help\" for available commands.";
+    // Return the action result, stripping the JSON block from Claude's natural text
+    const naturalText = result.replace(/```json\s*\n[\s\S]*?\n```/, "").trim();
+    return naturalText ? `${naturalText}\n\n${actionResult}` : actionResult;
   }
+
+  // No action block -- just return Claude's conversational response
+  return result;
 }
 
 async function main() {
@@ -196,8 +275,8 @@ async function main() {
     console.log(`[telegram] Message from ${ctx.from.id}: ${text}`);
 
     try {
-      const response = await handleMessage(text);
-      await ctx.reply(response);
+      const response = await handleMessage(text, ctx);
+      if (response) await ctx.reply(response);
     } catch (err) {
       console.error(`[telegram] Error: ${(err as Error).message}`);
       await ctx.reply(`Error: ${(err as Error).message.substring(0, 200)}`);
