@@ -5,7 +5,9 @@ import { fileURLToPath } from "url";
 import { resolveDateSpec, formatDate } from "./schema.js";
 import { getAirline, getTaskPath } from "./registry.js";
 import { saveResults } from "./results.js";
+import { startRun, completeRun, failRun, CAPTCHA_SENTINEL, LOGIN_SENTINEL } from "./runs.js";
 import type { SearchTarget } from "./schema.js";
+import type { RunStatus } from "./runs.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "../..");
@@ -93,6 +95,8 @@ export async function executeSearch(target: SearchTarget, airlineId: string): Pr
 
   console.log(`  Searching ${airline.name} for ${target.origin}→${target.destination} on ${departureDate}...`);
 
+  const run = startRun(target.id, airlineId, departureDate);
+
   // Build MCP server (only if source is newer than dist)
   const mcpDir = path.join(REPO_ROOT, "phantom-mcp");
   if (mcpBuildStale(mcpDir)) {
@@ -108,30 +112,35 @@ export async function executeSearch(target: SearchTarget, airlineId: string): Pr
   // Run Claude
   let output: string;
   try {
-    output = execFileSync("claude", ["-p", "--permission-mode", "bypassPermissions", prompt], {
-      encoding: "utf-8",
-      cwd: REPO_ROOT,
-      timeout: 300000, // 5 minute timeout
-    }).trim();
-  } finally {
-    killChrome();
+    try {
+      output = execFileSync("claude", ["-p", "--permission-mode", "bypassPermissions", prompt], {
+        encoding: "utf-8",
+        cwd: REPO_ROOT,
+        timeout: 300000,
+      }).trim();
+    } finally {
+      killChrome();
+    }
+
+    // Parse JSON from Claude's output
+    const cleaned = output.replace(/^```json?\n?/, "").replace(/\n?```$/, "").trim();
+    const jsonStart = cleaned.indexOf("{");
+    const jsonEnd = cleaned.lastIndexOf("}");
+    if (jsonStart === -1 || jsonEnd === -1) throw new Error("No JSON object found in Claude's output:\n" + output.substring(0, 500));
+
+    const jsonStr = cleaned.substring(jsonStart, jsonEnd + 1);
+    const parsed = JSON.parse(jsonStr);
+    const flightCount = Array.isArray(parsed.flights) ? parsed.flights.length : 0;
+
+    saveResults(target.id, airlineId, departureDate, target.origin, target.destination, target.searchMode, jsonStr, flightCount);
+    completeRun(run.id, flightCount);
+
+    console.log(`  Found ${flightCount} flights.`);
+    return parsed;
+  } catch (err) {
+    const msg = (err as Error).message;
+    const status: RunStatus = msg.includes(CAPTCHA_SENTINEL) ? "captcha" : msg.includes(LOGIN_SENTINEL) ? "login_required" : "error";
+    failRun(run.id, status, msg);
+    throw err;
   }
-
-  // Parse JSON from Claude's output (strip any markdown fences if present)
-  const cleaned = output.replace(/^```json?\n?/, "").replace(/\n?```$/, "").trim();
-
-  // Find the JSON object in the output (Claude might add text before/after)
-  const jsonStart = cleaned.indexOf("{");
-  const jsonEnd = cleaned.lastIndexOf("}");
-  if (jsonStart === -1 || jsonEnd === -1) throw new Error("No JSON object found in Claude's output:\n" + output.substring(0, 500));
-
-  const jsonStr = cleaned.substring(jsonStart, jsonEnd + 1);
-  const parsed = JSON.parse(jsonStr);
-  const flightCount = Array.isArray(parsed.flights) ? parsed.flights.length : 0;
-
-  // Save to database
-  const saved = saveResults(target.id, airlineId, departureDate, target.origin, target.destination, target.searchMode, jsonStr, flightCount);
-
-  console.log(`  Found ${flightCount} flights. Results saved (${saved.id})`);
-  return parsed;
 }

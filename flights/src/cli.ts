@@ -6,6 +6,7 @@ import { createTarget, listTargets, getTarget, deactivateTarget, activateTarget 
 import { loadRegistry, findAirlinesForRoute, hasNonstop } from "./registry.js";
 import { executeSearch } from "./executor.js";
 import { getResults } from "./results.js";
+import { getRecentRuns } from "./runs.js";
 import type { SearchTargetInput } from "./schema.js";
 
 const PARSE_PROMPT = `Parse this flight search request into a structured JSON object. Extract:
@@ -203,6 +204,22 @@ async function main() {
       break;
     }
 
+    case "runs": {
+      const id = args[0];
+      const runs = getRecentRuns(id);
+      if (runs.length === 0) {
+        console.log("No runs found.");
+      } else {
+        console.log(`${runs.length} recent run${runs.length !== 1 ? "s" : ""}:\n`);
+        for (const r of runs) {
+          const duration = r.finishedAt ? `${((new Date(r.finishedAt).getTime() - new Date(r.startedAt).getTime()) / 1000).toFixed(0)}s` : "running";
+          console.log(`  ${r.status.padEnd(14)} ${r.airlineId.padEnd(20)} ${r.departureDate}  ${duration.padStart(5)}  ${r.resultCount ?? "-"} flights  ${r.startedAt}`);
+          if (r.errorMessage) console.log(`    Error: ${r.errorMessage.substring(0, 100)}`);
+        }
+      }
+      break;
+    }
+
     case "results": {
       const id = args[0];
       if (!id) { console.error("Usage: cli results <target-id>"); process.exit(1); }
@@ -226,7 +243,7 @@ async function main() {
 
     default:
       console.log("Usage: cli <command> [args]");
-      console.log("Commands: add, airlines, list, show, disable, enable, run, results");
+      console.log("Commands: add, airlines, list, show, disable, enable, run, runs, results");
       console.log("");
       console.log("  add \"<natural language>\"   Parse and create a search target");
       console.log("  add --json '{...}'         Create from raw JSON (--yes to auto-accept airlines)");
@@ -236,6 +253,7 @@ async function main() {
       console.log("  disable <id>               Deactivate a target");
       console.log("  enable <id>                Reactivate a target");
       console.log("  run <target-id>            Execute search for a target");
+      console.log("  runs [target-id]           Show recent run history");
       console.log("  results <target-id>        Show past search results");
       break;
   }

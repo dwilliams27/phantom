@@ -37,6 +37,36 @@ export function getDb(): Database.Database {
   `);
 
   db.exec(`
+    CREATE TABLE IF NOT EXISTS search_runs (
+      id TEXT PRIMARY KEY,
+      target_id TEXT NOT NULL,
+      airline_id TEXT NOT NULL,
+      departure_date TEXT NOT NULL,
+      started_at TEXT NOT NULL,
+      finished_at TEXT,
+      status TEXT NOT NULL DEFAULT 'running',
+      result_count INTEGER,
+      error_message TEXT
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS alert_history (
+      id TEXT PRIMARY KEY,
+      target_id TEXT NOT NULL,
+      airline_id TEXT NOT NULL,
+      flight_key TEXT NOT NULL,
+      alerted_at TEXT NOT NULL,
+      channel TEXT NOT NULL
+    )
+  `);
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_alert_history_lookup
+    ON alert_history (flight_key, channel, alerted_at)
+  `);
+
+  db.exec(`
     CREATE TABLE IF NOT EXISTS search_results (
       id TEXT PRIMARY KEY,
       target_id TEXT NOT NULL,
