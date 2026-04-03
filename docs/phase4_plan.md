@@ -91,7 +91,9 @@ The ranking algo takes raw results, filters by maxTravelHours, scores remaining 
 }
 ```
 
-**Email via nodemailer (MVP).** Telegram later.
+**Telegram Bot (primary channel).** Free, excellent webhook support, proper security via bot token. Both user and wife install Telegram and message the bot. Bot responds with results, alerts, and accepts natural language commands for managing search targets.
+
+**Email via nodemailer (secondary/optional).** For users who want email alerts instead of or in addition to Telegram.
 
 **Alert content:** Airline, route, date, points/miles required, class, travel time, stops, ranked position.
 
@@ -122,6 +124,8 @@ phantom-flights run-all
 ```
 
 The `add` command uses Claude to parse the natural language into a search target JSON, then looks up the airline registry to assign airlines, and saves to SQLite.
+
+Telegram integration: the bot accepts the same natural language commands via text message. Inbound Telegram message → webhook → `claude -p --permission-mode dontAsk --allowedTools "..."` with locked-down permissions → CLI action → response sent back via Telegram. Only messages from allowlisted Telegram user IDs are processed.
 
 ---
 
