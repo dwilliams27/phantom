@@ -202,7 +202,7 @@ async function main() {
         const results = await executeSearch(target, airlineId, "mid", fast);
         if (results.flights?.length) {
           const ctx = { targetId: target.id, airlineId, origin: target.origin, destination: target.destination, departureDate: results.departureDate || "unknown" };
-          const ranked = processAlertPipeline(ctx, results.flights, target.class);
+          const ranked = await processAlertPipeline(ctx, results.flights, target.class);
           console.log(`\n  Top ${ranked.length} results from ${airlineId} (ranked):`);
           for (const f of ranked) {
             console.log(`    [${f.score}] ${f.departureTime}→${f.arrivalTime} (${f.duration}) ${f.relevantMiles.toLocaleString()} miles${f.seatsRemaining ? ` [${f.seatsRemaining}]` : ""}`);
@@ -225,7 +225,7 @@ async function main() {
         const results = await executeSearch(target, airlineId, "mid", fastAll);
         if (results.flights?.length) {
           const ctx = { targetId: target.id, airlineId, origin: target.origin, destination: target.destination, departureDate: results.departureDate || "unknown" };
-          const ranked = processAlertPipeline(ctx, results.flights, target.class);
+          const ranked = await processAlertPipeline(ctx, results.flights, target.class);
           for (const f of ranked) {
             console.log(`    [${f.score}] ${f.departureTime}→${f.arrivalTime} (${f.duration}) ${f.relevantMiles.toLocaleString()} miles`);
           }

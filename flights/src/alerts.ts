@@ -111,29 +111,32 @@ export function evaluateAlerts(
   return actions;
 }
 
-export function dispatchAlerts(
+export async function dispatchAlerts(
   ctx: SearchContext,
   actions: AlertAction[],
-): void {
+  searchClass: string,
+): Promise<void> {
   for (const action of actions) {
     const { flight, channel, flightKey } = action;
     const stopsStr = flight.stops.length === 0 ? "nonstop" : `${flight.stops.length} stop${flight.stops.length > 1 ? "s" : ""} (${flight.stops.join(", ")})`;
 
     if (channel === "console") {
       console.log(`  🔔 DEAL: ${ctx.origin}→${ctx.destination} ${ctx.departureDate} | ${flight.departureTime}→${flight.arrivalTime} (${flight.duration}) | ${flight.relevantMiles.toLocaleString()} miles | ${stopsStr}${flight.seatsRemaining ? ` | ${flight.seatsRemaining}` : ""}`);
+    } else if (channel === "telegram") {
+      const { sendTelegramAlert } = await import("./telegram.js");
+      await sendTelegramAlert(flight, ctx.origin, ctx.destination, ctx.departureDate, searchClass);
     }
-    // Future: channel === "telegram" → send via Telegram bot API (4D)
 
     recordAlert(ctx.targetId, ctx.airlineId, flightKey, channel);
   }
 }
 
-export function processAlertPipeline(ctx: SearchContext, flights: Flight[], searchClass: string): RankedFlight[] {
+export async function processAlertPipeline(ctx: SearchContext, flights: Flight[], searchClass: string): Promise<RankedFlight[]> {
   const config = loadAlertsConfig();
   const ranked = rankFlights(flights, config.defaultRanking, searchClass);
   const actions = evaluateAlerts(ctx, ranked, searchClass);
   if (actions.length) {
-    dispatchAlerts(ctx, actions);
+    await dispatchAlerts(ctx, actions, searchClass);
   }
   return ranked;
 }

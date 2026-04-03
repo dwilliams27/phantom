@@ -12,3 +12,5 @@ export { wasAlerted, recordAlert, evaluateAlerts, dispatchAlerts, loadAlertsConf
 export type { SearchContext, AlertRecord, AlertAction } from "./alerts.js";
 export { rankFlights, parseDuration } from "./ranking.js";
 export type { Flight, RankedFlight, RankingConfig } from "./ranking.js";
+export { extractJson } from "./util.js";
+export { sendTelegramAlert } from "./telegram.js";

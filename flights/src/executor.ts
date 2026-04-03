@@ -6,6 +6,7 @@ import { resolveDateSpec, formatDate } from "./schema.js";
 import { getAirline, getTaskPath } from "./registry.js";
 import { saveResults } from "./results.js";
 import { startRun, completeRun, failRun, CAPTCHA_SENTINEL, LOGIN_SENTINEL } from "./runs.js";
+import { extractJson } from "./util.js";
 import type { SearchTarget } from "./schema.js";
 import type { RunStatus } from "./runs.js";
 
@@ -170,13 +171,8 @@ export async function executeSearch(target: SearchTarget, airlineId: string, dat
     }
 
     // Parse JSON from Claude's output
-    const cleaned = output.replace(/^```json?\n?/, "").replace(/\n?```$/, "").trim();
-    const jsonStart = cleaned.indexOf("{");
-    const jsonEnd = cleaned.lastIndexOf("}");
-    if (jsonStart === -1 || jsonEnd === -1) throw new Error("No JSON object found in Claude's output:\n" + output.substring(0, 500));
-
-    const jsonStr = cleaned.substring(jsonStart, jsonEnd + 1);
-    const parsed = JSON.parse(jsonStr);
+    const parsed = extractJson(output);
+    const jsonStr = JSON.stringify(parsed);
     const flightCount = Array.isArray(parsed.flights) ? parsed.flights.length : 0;
 
     saveResults(target.id, airlineId, departureDate, target.origin, target.destination, target.searchMode, jsonStr, flightCount);

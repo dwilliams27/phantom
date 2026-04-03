@@ -104,7 +104,7 @@ async function main() {
 
       if (results.flights?.length) {
         const ctx = { targetId: target.id, airlineId, origin: target.origin, destination: target.destination, departureDate: results.departureDate || "unknown" };
-        processAlertPipeline(ctx, results.flights, target.class);
+        await processAlertPipeline(ctx, results.flights, target.class);
       }
 
       successes++;
