@@ -35,6 +35,20 @@ Move the entire system to the cloud so it runs without a local Mac.
 
 **Blockers before attempting**: Validate xdotool produces `isTrusted: true` in Chromium on Xvfb. Without this the entire input model breaks.
 
+## Session Management
+
+Three-layer approach to keep airline sessions alive for overnight runs without daily manual re-login.
+
+**Layer 1: Warm-up visit (automatic)**. Before each search, the orchestrator navigates to the airline's account page. Sites with sliding session expiration (most airlines) refresh the session on page load. If still logged in, proceed to search. If not, escalate to Layer 3.
+
+**Layer 2: Session monitor (proactive)**. Lightweight cron job runs a few times during the day (e.g., 10am, 2pm, 6pm). For each onboarded airline, visits the account page and checks if still logged in. If session is expiring or expired, sends Telegram alert: "Turkish Airlines session expired. Log in on your Mac to refresh before tonight's run." Gives the user hours of heads-up, not a 3am surprise.
+
+**Layer 3: LOGIN_REQUIRED escalation (reactive)**. When the overnight agent hits an expired session during a search, it writes LOGIN_REQUIRED and stops that airline. Orchestrator sends immediate Telegram alert with which airline needs re-login. Skips to next airline/target. Retries next night.
+
+**Onboarding step: session inspection**. During airline onboarding, inspect session mechanics with evaluate_script: `document.cookie` to see auth cookie names, expiration times, HttpOnly flags. Check for "remember me" persistent tokens. Document session lifetime in onboarding.md (e.g., "Turkish Airlines: session cookie `TK_SESSION` expires after 24h, sliding expiration on page load, remember-me token lasts 90 days"). This tells the orchestrator whether warm-up visits will work for that airline.
+
+**Implementation**: Add `sessionCheck` field to airline registry with a URL to visit for checking login status (e.g., account page). Add detection patterns to `check_page_status` for each airline's logged-in vs logged-out state. Session monitor is a separate script (`flights/src/session-monitor.ts`) triggered by cron.
+
 ## Transfer Bonus Monitoring
 
 - **Credit card transfer promotions**: Scheduled scraping of transfer bonus promotions between credit card points programs (Amex MR, Chase UR, Citi TY, etc.) and airline partners. Catch limited-time deals where points transfer at elevated rates (e.g. 30% bonus Amex→Virgin Atlantic). Alert when a promotion is running that overlaps with airlines/programs relevant to the user's search targets.
