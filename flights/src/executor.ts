@@ -47,6 +47,11 @@ function launchChrome(): void {
 }
 
 function killChrome(): void {
+  // Graceful quit first -- gives Chrome time to flush cookies to disk
+  try { execSync('osascript -e \'tell application "Google Chrome" to quit\'', { stdio: "ignore", timeout: 5000 }); } catch (_) {}
+  // Wait for graceful shutdown
+  try { execSync("sleep 2", { stdio: "ignore" }); } catch (_) {}
+  // Force kill anything remaining
   try { execSync('pkill -f "user-data-dir=.*phantom-chrome-profile"', { stdio: "ignore" }); } catch (_) {}
   try { fs.unlinkSync("/tmp/phantom.sock"); } catch (_) {}
 }
@@ -108,11 +113,19 @@ export async function executeSearch(target: SearchTarget, airlineId: string, dat
     execFileSync("npm", ["run", "build", "--silent"], { cwd: mcpDir, stdio: "pipe" });
   }
 
-  // Launch Chrome (overlaps with build time above when build runs)
-  killChrome();
-  await new Promise(r => setTimeout(r, 1000));
-  launchChrome();
-  await new Promise(r => setTimeout(r, 3000));
+  // Reuse existing Chrome if running (preserves login sessions), otherwise launch fresh
+  const chromeRunning = (() => {
+    try { execSync('pgrep -f "user-data-dir=.*phantom-chrome-profile"', { stdio: "ignore" }); return true; } catch (_) { return false; }
+  })();
+  if (!chromeRunning) {
+    launchChrome();
+    await new Promise(r => setTimeout(r, 5000));
+  } else {
+    console.error("  Reusing existing Chrome (session preserved)");
+    // Clean up stale socket so MCP server can bind
+    try { fs.unlinkSync("/tmp/phantom.sock"); } catch (_) {}
+    await new Promise(r => setTimeout(r, 1000));
+  }
 
   // Run Claude with full conversation logging
   const logDir = path.join(REPO_ROOT, "tmp", "agent_logs");
@@ -167,7 +180,9 @@ export async function executeSearch(target: SearchTarget, airlineId: string, dat
       }
       output = lastText.trim();
     } finally {
-      killChrome();
+      // Don't kill Chrome -- keep it alive to preserve login sessions
+      // Only clean up the socket so next run can reconnect
+      try { fs.unlinkSync("/tmp/phantom.sock"); } catch (_) {}
     }
 
     // Parse JSON from Claude's output
