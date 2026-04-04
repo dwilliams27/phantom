@@ -23,13 +23,13 @@ Wait for the page to load. If a cookie consent banner appears, dismiss it.
 
 ### 2. Check Login Status
 
-Air France's site shows a "Log in" link in the nav even when you ARE logged in -- this is misleading. Do NOT rely on whether you see "Log in" text. Instead:
+IMPORTANT: Air France loads auth state asynchronously. The page initially shows "Log in" even when you ARE logged in -- the user's name appears after a background auth check completes (1-3 seconds after page load).
 
-1. Click the "Log in" or account button in the top-right header area
-2. A dropdown or panel will appear. If it shows the user's name and Flying Blue tier, you are logged in. Close the panel and proceed.
-3. If it shows a login form asking for email/password, you are NOT logged in. Return `{"status": "LOGIN_REQUIRED"}` and stop.
-
-If you successfully get to the "Book with Miles" tab and the search form appears functional, you are logged in regardless of what the header shows.
+Steps:
+1. After navigating, wait 5 seconds for auth to load: use wait_for with text matching a common logged-in indicator, or just take a snapshot after waiting.
+2. Take a snapshot. Look for the user's name (e.g., "DAVID") in the header area. If you see their name or a Flying Blue tier, you are logged in.
+3. If after 5 seconds you still only see "Log in" with no name, try clicking the "Book with Miles" tab anyway -- if the tab works and the search form appears, proceed with the search.
+4. Only return `{"status": "LOGIN_REQUIRED"}` if you click "Book with Miles" and get redirected to a login page, or if the search form is not accessible.
 
 ### 3. Select "Book with Miles" Tab
 
