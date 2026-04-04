@@ -1,4 +1,4 @@
-import { execFileSync, execSync, spawnSync } from "child_process";
+import { execFileSync, execSync, spawn as spawnChild } from "child_process";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -135,8 +135,9 @@ export async function executeSearch(target: SearchTarget, airlineId: string, dat
   let output: string;
   try {
     try {
-      // stream-json captures every message + tool call for audit
-      // Use spawnSync with maxBuffer to handle large stream output
+      // Stream conversation log to file as it arrives (no memory buffering).
+      // This avoids the ETIMEDOUT issue from spawnSync buffering 10MB+ of
+      // stream-json output. The file is written incrementally.
       const claudeArgs = [
         "-p", "--permission-mode", "bypassPermissions",
         "--output-format", "stream-json", "--verbose",
@@ -147,38 +148,67 @@ export async function executeSearch(target: SearchTarget, airlineId: string, dat
       }
       claudeArgs.push(prompt);
 
-      const result = spawnSync("claude", claudeArgs, {
-        encoding: "utf-8",
-        cwd: REPO_ROOT,
-        timeout: 300000,
-        maxBuffer: 50 * 1024 * 1024, // 50MB
-      });
+      output = await new Promise<string>((resolve, reject) => {
+        const logStream = fs.createWriteStream(logPath);
+        const child = spawnChild("claude", claudeArgs, {
+          cwd: REPO_ROOT,
+          stdio: ["ignore", "pipe", "pipe"],
+        });
 
-      if (result.error) throw result.error;
-      if (result.status !== 0) throw new Error(`Claude exited with code ${result.status}: ${result.stderr?.substring(0, 500)}`);
+        let lastText = "";
+        let lineBuf = "";
+        let settled = false;
 
-      const rawOutput = result.stdout;
-
-      // Write full stream log for audit
-      fs.writeFileSync(logPath, rawOutput);
-      console.error(`  Agent log saved: ${logPath}`);
-
-      // Extract the final assistant text from the stream
-      const lines = rawOutput.trim().split("\n").filter(Boolean);
-      let lastText = "";
-      for (const line of lines) {
-        try {
-          const event = JSON.parse(line);
-          if (event.type === "result" && event.result?.text) {
-            lastText = event.result.text;
-          } else if (event.type === "assistant" && event.message?.content) {
-            for (const block of event.message.content) {
-              if (block.type === "text") lastText = block.text;
+        function parseLine(line: string): void {
+          if (!line) return;
+          try {
+            const event = JSON.parse(line);
+            if (event.type === "result" && event.result?.text) {
+              lastText = event.result.text;
+            } else if (event.type === "assistant" && event.message?.content) {
+              for (const block of event.message.content) {
+                if (block.type === "text") lastText = block.text;
+              }
             }
+          } catch (_) { /* skip non-JSON lines from verbose output */ }
+        }
+
+        child.stdout.on("data", (chunk: Buffer) => {
+          const text = chunk.toString("utf-8");
+          logStream.write(text);
+          lineBuf += text;
+          const lines = lineBuf.split("\n");
+          lineBuf = lines.pop()!;
+          for (const line of lines) parseLine(line);
+        });
+
+        child.stderr.on("data", (chunk: Buffer) => {
+          process.stderr.write(chunk);
+        });
+
+        const timer = setTimeout(() => {
+          child.kill("SIGTERM");
+          if (!settled) { settled = true; reject(new Error("Claude timed out after 600s")); }
+        }, 600000);
+
+        child.on("close", (code) => {
+          clearTimeout(timer);
+          if (lineBuf) parseLine(lineBuf);
+          logStream.end();
+          console.error(`  Agent log saved: ${logPath}`);
+          if (!settled) {
+            settled = true;
+            if (code !== 0) reject(new Error(`Claude exited with code ${code}`));
+            else resolve(lastText.trim());
           }
-        } catch (_) { /* skip non-JSON lines from verbose output */ }
-      }
-      output = lastText.trim();
+        });
+
+        child.on("error", (err) => {
+          clearTimeout(timer);
+          logStream.end();
+          if (!settled) { settled = true; reject(err); }
+        });
+      });
     } finally {
       // Don't kill Chrome -- keep it alive to preserve login sessions
       // Only clean up the socket so next run can reconnect

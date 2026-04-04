@@ -23,7 +23,13 @@ Wait for the page to load. If a cookie consent banner appears, dismiss it.
 
 ### 2. Check Login Status
 
-Take a snapshot. Look for the user's name in the header (e.g., "DAVID WILLIAMS") or a Flying Blue tier indicator. If you see a "Log in" button instead of a name, return `{"status": "LOGIN_REQUIRED"}` and stop.
+Air France's site shows a "Log in" link in the nav even when you ARE logged in -- this is misleading. Do NOT rely on whether you see "Log in" text. Instead:
+
+1. Click the "Log in" or account button in the top-right header area
+2. A dropdown or panel will appear. If it shows the user's name and Flying Blue tier, you are logged in. Close the panel and proceed.
+3. If it shows a login form asking for email/password, you are NOT logged in. Return `{"status": "LOGIN_REQUIRED"}` and stop.
+
+If you successfully get to the "Book with Miles" tab and the search form appears functional, you are logged in regardless of what the header shows.
 
 ### 3. Select "Book with Miles" Tab
 
