@@ -110,5 +110,44 @@
       "classSelection": true
     },
     "status": "onboarded"
+  },
+  {
+    "id": "cathay_pacific",
+    "name": "Cathay Pacific",
+    "searchModes": {
+      "points": {
+        "taskPath": "flights/tasks/cathay_pacific/TASK_points.md",
+        "searchUrl": "https://www.cathaypacific.com/cx/en_US.html"
+      }
+    },
+    "hubs": ["HKG"],
+    "regions": ["americas", "europe", "asia", "africa", "oceania"],
+    "nonstopRoutes": [
+      "HKG-FRA", "HKG-MUC", "HKG-ZRH", "HKG-LHR", "HKG-MAN", "HKG-MXP", "HKG-FCO",
+      "HKG-BCN", "HKG-MAD", "HKG-BRU", "HKG-CDG", "HKG-AMS",
+      "HKG-BOS", "HKG-ORD", "HKG-DFW", "HKG-LAX", "HKG-JFK", "HKG-SFO", "HKG-SEA",
+      "HKG-YYZ", "HKG-YVR",
+      "HKG-JNB",
+      "HKG-RUH", "HKG-DXB",
+      "HKG-DAC", "HKG-BLR", "HKG-MAA", "HKG-HYD", "HKG-BOM", "HKG-DEL", "HKG-KTM", "HKG-CMB",
+      "HKG-TFU", "HKG-PEK", "HKG-CSX", "HKG-CKG", "HKG-FOC", "HKG-CAN", "HKG-HAK", "HKG-HGH",
+      "HKG-NKG", "HKG-NGB", "HKG-TAO", "HKG-SHA", "HKG-PVG", "HKG-URC", "HKG-WNZ", "HKG-WUH",
+      "HKG-XIY", "HKG-XMN", "HKG-CGO",
+      "HKG-FUK", "HKG-NGO", "HKG-KIX", "HKG-CTS", "HKG-NRT", "HKG-HND",
+      "HKG-ICN",
+      "HKG-KHH", "HKG-TPE",
+      "HKG-DPS", "HKG-CGK", "HKG-SUB", "HKG-KUL", "HKG-PEN", "HKG-CEB", "HKG-MNL",
+      "HKG-SIN",
+      "HKG-BKK", "HKG-HKT",
+      "HKG-HAN", "HKG-SGN",
+      "HKG-ADL", "HKG-BNE", "HKG-CNS", "HKG-MEL", "HKG-PER", "HKG-SYD",
+      "HKG-AKL", "HKG-CHC"
+    ],
+    "capabilities": {
+      "oneWay": true,
+      "roundTrip": true,
+      "classSelection": true
+    },
+    "status": "onboarded"
   }
 ]
