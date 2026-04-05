@@ -35,6 +35,12 @@ Move the entire system to the cloud so it runs without a local Mac.
 
 **Blockers before attempting**: Validate xdotool produces `isTrusted: true` in Chromium on Xvfb. Without this the entire input model breaks.
 
+## Overnight Run Reliability
+
+- **Prevent sleep during overnight runs**: macOS cron doesn't fire when laptop is sleeping. Add `caffeinate -s` to the overnight script to keep Mac awake during the run window (kill after completion). Or use `pmset schedule wake` to wake the Mac at 2:55am before the 3am cron.
+- **Missed run detection**: If the overnight run didn't fire (laptop was asleep), detect this on next wake and either run immediately or send a Telegram alert: "Last night's run was missed (Mac was asleep)."
+- **launchd instead of cron**: macOS launchd supports `StartCalendarInterval` which can run missed jobs when the machine wakes. Consider migrating from cron to a launchd plist.
+
 ## Session Management
 
 Three-layer approach to keep airline sessions alive for overnight runs without daily manual re-login.
