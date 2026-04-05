@@ -107,6 +107,8 @@ Also extract the date carousel data: for each of the 7 visible days, the date an
 
 ### 9. Output Format
 
+For roundtrip searches, use `outboundFlights` and `returnFlights` arrays. For one-way, use just `outboundFlights`. Turkish Airlines shows both outbound and return results on the same page for roundtrip searches.
+
 Return a JSON object:
 ```json
 {
@@ -115,7 +117,8 @@ Return a JSON object:
   "origin": "IAD",
   "destination": "BKK",
   "departureDate": "2026-07-02",
-  "tripType": "oneway",
+  "returnDate": "2026-07-12",
+  "tripType": "roundtrip",
   "class": "business",
   "passengers": 1,
   "searchedAt": "2026-04-02T22:00:00Z",
@@ -123,7 +126,7 @@ Return a JSON object:
     {"date": "2026-06-29", "lowestMiles": 110000},
     {"date": "2026-06-30", "lowestMiles": 110000}
   ],
-  "flights": [
+  "outboundFlights": [
     {
       "departureTime": "21:45",
       "arrivalTime": "05:10+2",
@@ -133,6 +136,18 @@ Return a JSON object:
       "economyMiles": 110000,
       "businessMiles": 275000,
       "seatsRemaining": "4 left"
+    }
+  ],
+  "returnFlights": [
+    {
+      "departureTime": "14:00",
+      "arrivalTime": "19:30",
+      "duration": "17h 30m",
+      "stops": ["IST"],
+      "aircraft": "A350-900",
+      "economyMiles": 110000,
+      "businessMiles": 275000,
+      "seatsRemaining": null
     }
   ]
 }

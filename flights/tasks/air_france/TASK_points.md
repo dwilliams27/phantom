@@ -136,7 +136,18 @@ Use evaluate_script or take_snapshot to extract ALL flights shown on the results
 
 Also extract the date carousel data: for each visible day, the date and lowest Miles price + taxes.
 
-### 12. Output Format
+### 12. Select Departing Flight and Extract Return Flights (Roundtrip Only)
+
+If this is a roundtrip search, you MUST select a departing flight to see return options:
+1. Click "Select" on the cheapest/best departing flight -- this is SAFE, it does NOT purchase anything
+2. The page advances to "Return flight" selection
+3. Extract all return flights using the same format as outbound flights
+4. Extract the return date carousel too
+5. Do NOT proceed past the return flight page
+
+### 13. Output Format
+
+For roundtrip searches, use `outboundFlights` and `returnFlights` arrays. For one-way, use just `outboundFlights`.
 
 Return a JSON object:
 ```json
@@ -144,7 +155,7 @@ Return a JSON object:
   "airline": "air_france",
   "searchMode": "points",
   "origin": "IAD",
-  "destination": "CDG",
+  "destination": "HKG",
   "departureDate": "2026-07-03",
   "tripType": "oneway",
   "class": "business",
@@ -175,8 +186,9 @@ Note: Air France shows miles price for the SELECTED cabin class only. Set `econo
 
 ## Safety Rules
 
-- Do NOT click any purchase, book, reserve, select, or checkout buttons beyond the flight selection page
-- Do NOT proceed past selecting a departing flight
+- Do NOT click any purchase, book, reserve, or checkout buttons
+- You MAY click "Select" on a departing flight to see return flight options -- this does NOT purchase anything, it just advances to the return flight selection page. You MUST select a departing flight to see return flights.
+- Do NOT proceed past the return flight selection page (do not enter passenger details or payment)
 - Do NOT enter passenger details or payment information
 - If you encounter a CAPTCHA, return {"status": "CAPTCHA_ENCOUNTERED"} and stop
 - If you encounter a login requirement, return {"status": "LOGIN_REQUIRED"} and stop

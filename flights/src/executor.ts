@@ -218,8 +218,8 @@ export async function executeSearch(target: SearchTarget, airlineId: string, dat
     // Parse JSON from Claude's output
     const parsed = extractJson(output);
     const jsonStr = JSON.stringify(parsed);
-    // Agents may use different keys: flights, outboundFlights, availableFlights, etc.
-    const flightArrays = [parsed.flights, parsed.outboundFlights, parsed.availableFlights].filter(Array.isArray);
+    // Agents use different keys depending on airline and trip type
+    const flightArrays = [parsed.flights, parsed.outboundFlights, parsed.returnFlights, parsed.inboundFlights, parsed.availableFlights].filter(Array.isArray);
     const flightCount = flightArrays.reduce((sum, arr) => sum + arr.length, 0);
 
     saveResults(target.id, airlineId, departureDate, target.origin, target.destination, target.searchMode, jsonStr, flightCount);
