@@ -21,15 +21,23 @@ Navigate to: https://wwws.airfrance.fr/en
 
 Wait for the page to load. If a cookie consent banner appears, dismiss it.
 
-### 2. Check Login Status
+### 2. Check Login Status and Refresh Session
 
-IMPORTANT: Air France loads auth state asynchronously. The page initially shows "Log in" even when you ARE logged in -- the user's name appears after a background auth check completes (1-3 seconds after page load).
+IMPORTANT: Air France has two quirks with login state:
+- Auth loads asynchronously (1-3 seconds after page load) -- the page initially shows "Log in" even when you ARE logged in.
+- Sessions go "soft expired" after ~12 hours. The site still has your credentials but needs a manual refresh: clicking the login dropdown and clicking the login button causes a page refresh that restores the authenticated session without requiring any password or OTP.
 
 Steps:
-1. After navigating, wait 5 seconds for auth to load: use wait_for with text matching a common logged-in indicator, or just take a snapshot after waiting.
-2. Take a snapshot. Look for the user's name (e.g., "DAVID") in the header area. If you see their name or a Flying Blue tier, you are logged in.
-3. If after 5 seconds you still only see "Log in" with no name, try clicking the "Book with Miles" tab anyway -- if the tab works and the search form appears, proceed with the search.
-4. Only return `{"status": "LOGIN_REQUIRED"}` if you click "Book with Miles" and get redirected to a login page, or if the search form is not accessible.
+1. After navigating, wait 5 seconds for auth to load.
+2. Take a snapshot. Look for the user's name (e.g., "DAVID") in the header area.
+3. If you see their name or Flying Blue tier, you are logged in -- proceed to step 3.
+4. If you only see "Log in" text with no name after waiting:
+   a. Click the "Log in" button/link in the header
+   b. A dropdown or panel may appear -- click the "Log in" or "Sign in" option within it
+   c. The page should refresh and your name should appear in the header (no password entry needed -- the site refreshes the session from saved credentials)
+   d. Wait 3 seconds, take a snapshot to confirm you are now logged in
+5. If after this refresh attempt you are STILL not logged in (a login form asking for email/password appears), return `{"status": "LOGIN_REQUIRED"}` and stop.
+6. As a final fallback, try clicking the "Book with Miles" tab regardless -- if the search form works, proceed with the search.
 
 ### 3. Select "Book with Miles" Tab
 
