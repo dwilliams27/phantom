@@ -138,12 +138,27 @@ async function handleMessage(text: string, ctx?: any): Promise<string> {
         for (const airlineId of target.airlines) {
           try {
             const results = await executeSearch(target, airlineId, "mid", action.fast ?? false);
-            const flightCount = results.flights?.length ?? 0;
+            const allFlights = [...(results.outboundFlights || []), ...(results.returnFlights || []), ...(results.flights || [])];
+            const flightCount = allFlights.length;
             let msg = `✓ Search complete: ${target.origin} ᐅ ${target.destination}\n${flightCount} flights found via ${airlineId}`;
-            if (results.flights?.length) {
+            if (results.outboundFlights?.length) {
+              msg += `\n\nOutbound (${results.outboundFlights.length}):`;
+              msg += "\n" + results.outboundFlights.slice(0, 3).map((f: any) => {
+                const miles = f.businessMiles || f.economyMiles || f.milesPrice;
+                return `  ${f.departureTime} ᐅ ${f.arrivalTime} (${f.duration}) ${miles?.toLocaleString()} miles`;
+              }).join("\n");
+            }
+            if (results.returnFlights?.length) {
+              msg += `\n\nReturn (${results.returnFlights.length}):`;
+              msg += "\n" + results.returnFlights.slice(0, 3).map((f: any) => {
+                const miles = f.businessMiles || f.economyMiles || f.milesPrice;
+                return `  ${f.departureTime} ᐅ ${f.arrivalTime} (${f.duration}) ${miles?.toLocaleString()} miles`;
+              }).join("\n");
+            }
+            if (!results.outboundFlights?.length && results.flights?.length) {
               msg += "\n\n" + results.flights.slice(0, 5).map((f: any) => {
-                const miles = target.class === "business" ? f.businessMiles : f.economyMiles;
-                return `${f.departureTime} ᐅ ${f.arrivalTime} (${f.duration}) ${miles?.toLocaleString()} miles`;
+                const miles = f.businessMiles || f.economyMiles || f.milesPrice;
+                return `  ${f.departureTime} ᐅ ${f.arrivalTime} (${f.duration}) ${miles?.toLocaleString()} miles`;
               }).join("\n");
             }
             await ctx.reply(msg);
@@ -233,9 +248,10 @@ User message: ${text}`;
       } else {
         const latest = rows[0];
         const parsed = JSON.parse(latest.rawJson);
-        if (parsed.flights?.length) {
-          actionResult = `Latest: ${latest.origin} ᐅ ${latest.destination} (${latest.departureDate})\n${latest.flightCount} flights\n\n` +
-            parsed.flights.slice(0, 5).map((f: any) => `${f.departureTime} ᐅ ${f.arrivalTime} (${f.duration}) ${f.businessMiles?.toLocaleString() || f.economyMiles?.toLocaleString()} miles`).join("\n");
+        const allResultFlights = [...(parsed.outboundFlights || []), ...(parsed.returnFlights || []), ...(parsed.flights || [])];
+        if (allResultFlights.length) {
+          actionResult = `Latest: ${latest.origin} ᐅ ${latest.destination} (${latest.departureDate})\n${allResultFlights.length} flights\n\n` +
+            allResultFlights.slice(0, 5).map((f: any) => `${f.departureTime} ᐅ ${f.arrivalTime} (${f.duration}) ${(f.businessMiles || f.economyMiles || f.milesPrice)?.toLocaleString()} miles`).join("\n");
         } else {
           actionResult = "No flights in latest results.";
         }
