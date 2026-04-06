@@ -183,7 +183,7 @@ server.registerTool("fill", {
   cliclick.click(center.x, center.y);
   await new Promise(r => setTimeout(r, 100));
   cliclick.selectAll();
-  await new Promise(r => setTimeout(r, 50));
+  await new Promise(r => setTimeout(r, 200));
   cliclick.typeText(value);
   return textResult(`Filled element [${ref}] with "${value}"`);
 });

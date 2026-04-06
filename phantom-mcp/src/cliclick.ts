@@ -81,7 +81,9 @@ export function typeText(text: string): void {
 }
 
 export function selectAll(): void {
-  run("kd:cmd", "t:a", "ku:cmd");
+  // w:100 between cmd-up and next command prevents macOS from
+  // interpreting the rapid cmd tap as a dictation trigger
+  run("kd:cmd", "t:a", "ku:cmd", "w:100");
 }
 
 export function pressKey(key: string): void {
